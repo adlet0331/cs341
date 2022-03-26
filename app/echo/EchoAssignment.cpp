@@ -35,14 +35,14 @@ int EchoAssignment::serverMain(const char *bind_ip, int port,
   memset(&addr, 0, addrlen);
 
   addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = htonl(bind_ip); //여기 에러
+  addr.sin_addr.s_addr = htonl(inet_addr(bind_ip));
   addr.sin_port = htons(9000);
 
   int bind_num = bind(sockfd, (struct sockaddr *)&addr, addrlen);
   int listen_num = listen(sockfd, 1);
+  // select
 
-
-  int accept_num = accept(sockfd, (struct sockaddr *)&addr, addrlen);
+  int accept_num = accept(sockfd, (struct sockaddr *)&addr, &addrlen);
 
   return 0;
 }
