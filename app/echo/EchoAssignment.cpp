@@ -36,7 +36,7 @@ int EchoAssignment::serverMain(const char *bind_ip, int port,
 
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = htonl(inet_addr(bind_ip));
-  addr.sin_port = htons(9000);
+  addr.sin_port = htons(port);
 
   int bind_num = bind(sockfd, (struct sockaddr *)&addr, addrlen);
   int listen_num = listen(sockfd, 1);
@@ -55,7 +55,15 @@ int EchoAssignment::clientMain(const char *server_ip, int port,
   // return. e.g., if an read() call return -1, return -1 for clientMain.
 
   int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  // connect();
+  struct sockaddr_in addr;
+  socklen_t addrlen = sizeof(addr);
+  memset(&addr, 0, addrlen);
+
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = htonl(inet_addr(server_ip));
+  addr.sin_port = htons(port);
+
+  int connect_num = connect(sockfd, (struct sockaddr *)&addr, addrlen);
 
   return 0;
 }
