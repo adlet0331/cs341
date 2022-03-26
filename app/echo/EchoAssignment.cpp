@@ -28,6 +28,22 @@ int EchoAssignment::serverMain(const char *bind_ip, int port,
   // !IMPORTANT: for all system calls, when an error happens, your program must
   // return. e.g., if an read() call return -1, return -1 for serverMain.
 
+  int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  
+  struct sockaddr_in addr;
+  socklen_t addrlen = sizeof(addr);
+  memset(&addr, 0, addrlen);
+
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = htonl(bind_ip); //여기 에러
+  addr.sin_port = htons(9000);
+
+  int bind_num = bind(sockfd, (struct sockaddr *)&addr, addrlen);
+  int listen_num = listen(sockfd, 1);
+
+
+  int accept_num = accept(sockfd, (struct sockaddr *)&addr, addrlen);
+
   return 0;
 }
 
@@ -37,6 +53,9 @@ int EchoAssignment::clientMain(const char *server_ip, int port,
   // !IMPORTANT: do not use global variables and do not define/use functions
   // !IMPORTANT: for all system calls, when an error happens, your program must
   // return. e.g., if an read() call return -1, return -1 for clientMain.
+
+  int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  // connect();
 
   return 0;
 }
