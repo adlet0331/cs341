@@ -31,7 +31,7 @@ int EchoAssignment::serverMain(const char *bind_ip, int port,
   int sockfd;
   if ((sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == 0){
     //error
-    perror("Failed : socket\n");
+    perror("Server Failed : socket\n");
     exit(0);
   }
 
@@ -43,12 +43,12 @@ int EchoAssignment::serverMain(const char *bind_ip, int port,
   serveraddr.sin_port = htons(port);
 
   if (bind(sockfd, (struct sockaddr *)&serveraddr, sizeof(serveraddr)) != 0){
-    perror("Failed : bind\n");
+    perror("Server Failed : bind\n");
     exit(0);
   }
 
-  if (listen(sockfd, 10) != 0){
-    perror("Failed : listen\n");
+  if (listen(sockfd, 100) != 0){
+    perror("Server Failed : listen\n");
     exit(0);
   }
 
@@ -59,12 +59,12 @@ int EchoAssignment::serverMain(const char *bind_ip, int port,
   while(1){
     client_sockfd = accept(sockfd, (struct sockaddr *) &clientaddr, &sizeof_clientaddr);
 
-    if(client_sockfd != -1){
-      submitAnswer("10.0.0.2", "accept Success");
+    if(client_sockfd == -1){
+      perror("Server Failed : accept\n");
+      exit(0);
     }
     else{
-      perror("Failed : accept\n");
-      exit(0);
+      submitAnswer("10.0.0.2", "echo-test");
     }
   }
 
@@ -80,16 +80,21 @@ int EchoAssignment::clientMain(const char *server_ip, int port,
   // return. e.g., if an read() call return -1, return -1 for clientMain.
 
   int clientfd;
-  if ((clientfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == 0){
+  if ((clientfd = socket(AF_INET, SOCK_STREAM, 0)) == 0){
     //error
-    perror("Failed : socket\n");
-    exit(0);
+    perror("Client Failed : socket\n");
+    //exit(0);
   }
 
   struct sockaddr_in serveraddr;
+  memset(&serveraddr, 0, sizeof(serveraddr));
+
+  serveraddr.sin_family = AF_INET;
+  serveraddr.sin_addr.s_addr = htonl(inet_addr(server_ip));
+  serveraddr.sin_port = htons(port);
 
   if (connect(clientfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) != 0){
-    perror("Failed : connect \n");
+    perror("Client Failed : connect \n");
     exit(0);
   }
 
