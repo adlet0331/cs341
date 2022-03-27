@@ -28,27 +28,28 @@ int EchoAssignment::serverMain(const char *bind_ip, int port,
   // !IMPORTANT: for all system calls, when an error happens, your program must
   // return. e.g., if an read() call return -1, return -1 for serverMain.
 
-  int sockfd;
-  if ((sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == 0){
+  int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if (sockfd == -1){
     //error
-    perror("Failed : socket\n");
+    perror("Server Failed : socket\n");
     exit(0);
   }
 
   struct sockaddr_in serveraddr;
-  memset(&serveraddr, 0, sizeof(serveraddr));
+  memset(&serveraddr, 0x00, sizeof(serveraddr));
 
   serveraddr.sin_family = AF_INET;
   serveraddr.sin_addr.s_addr = htonl(inet_addr(bind_ip));
   serveraddr.sin_port = htons(port);
+  printf("Server : %s, %d\n", bind_ip, port);
 
-  if (bind(sockfd, (struct sockaddr *)&serveraddr, sizeof(serveraddr)) != 0){
-    perror("Failed : bind\n");
+  if (bind(sockfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) != 0){
+    perror("Server Failed : bind\n");
     exit(0);
   }
 
-  if (listen(sockfd, 10) != 0){
-    perror("Failed : listen\n");
+  if (listen(sockfd, 100) != 0){
+    perror("Server Failed : listen\n");
     exit(0);
   }
 
@@ -57,14 +58,30 @@ int EchoAssignment::serverMain(const char *bind_ip, int port,
   socklen_t sizeof_clientaddr = (socklen_t) sizeof(clientaddr);
 
   while(1){
+    printf("whilewhile\n");
     client_sockfd = accept(sockfd, (struct sockaddr *) &clientaddr, &sizeof_clientaddr);
 
-    if(client_sockfd != -1){
-      submitAnswer("10.0.0.2", "accept Success");
+    if(client_sockfd == -1){
+      perror("Server Failed : accept\n");
+      //exit(0);
     }
     else{
-      perror("Failed : accept\n");
-      exit(0);
+      //Accept Success
+      struct sockaddr_in peeraddr;
+      socklen_t sizeof_peeraddr = (socklen_t) sizeof(peeraddr);
+      memset(&serveraddr, 0x00, sizeof(peeraddr));
+
+      if(getpeername(client_sockfd, (struct sockaddr *) &peeraddr, &sizeof_peeraddr) == -1){
+        perror("GetPeername Failed\n");
+      }
+
+      char peer_ip_adress[32];
+      inet_ntop(AF_INET, &peeraddr.sin_addr.s_addr, peer_ip_adress, sizeof(peer_ip_adress));
+
+      printf("%s\n", peer_ip_adress);
+
+      submitAnswer(peer_ip_adress, "echo-test");
+      break;
     }
   }
 
@@ -79,21 +96,32 @@ int EchoAssignment::clientMain(const char *server_ip, int port,
   // !IMPORTANT: for all system calls, when an error happens, your program must
   // return. e.g., if an read() call return -1, return -1 for clientMain.
 
-  int clientfd;
-  if ((clientfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == 0){
+  int clientfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if (clientfd == -1){
     //error
-    perror("Failed : socket\n");
+    perror("Client Failed : socket\n");
     exit(0);
   }
+  printf("Client: %s %d\n", server_ip, clientfd);
 
   struct sockaddr_in serveraddr;
+  memset(&serveraddr, 0, sizeof(serveraddr));
 
+  serveraddr.sin_family = AF_INET;
+  serveraddr.sin_addr.s_addr = inet_addr(server_ip);
+  serveraddr.sin_port = htons(port);
+
+<<<<<<< HEAD
   serveraddr.sin_family = AF_INET;
   serveraddr.sin_addr.s_addr=inet_addr(server_ip);
   serveraddr.sin_port = htons(port);
 
   if (connect(clientfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) == -1){
     perror("Failed : connect \n");
+=======
+  if (connect(clientfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) != 0){
+    perror("Client Failed : connect \n");
+>>>>>>> 91b2c9c5ed17f28c10daf3a92758aa0c0f582d36
     exit(0);
   }
 
