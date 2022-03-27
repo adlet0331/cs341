@@ -41,7 +41,6 @@ int EchoAssignment::serverMain(const char *bind_ip, int port,
   serveraddr.sin_family = AF_INET;
   serveraddr.sin_addr.s_addr = htonl(inet_addr(bind_ip));
   serveraddr.sin_port = htons(port);
-  printf("Server : %s, %d\n", bind_ip, port);
 
   if (bind(sockfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) != 0){
     perror("Server Failed : bind\n");
@@ -58,11 +57,10 @@ int EchoAssignment::serverMain(const char *bind_ip, int port,
   socklen_t sizeof_clientaddr = (socklen_t) sizeof(clientaddr);
 
   while(1){
-    printf("whilewhile\n");
     client_sockfd = accept(sockfd, (struct sockaddr *) &clientaddr, &sizeof_clientaddr);
 
     if(client_sockfd == -1){
-      perror("Server Failed : accept\n");
+      //perror("Server Failed : accept\n");
       //exit(0);
     }
     else{
@@ -75,12 +73,23 @@ int EchoAssignment::serverMain(const char *bind_ip, int port,
         perror("GetPeername Failed\n");
       }
 
-      char peer_ip_adress[32];
-      inet_ntop(AF_INET, &peeraddr.sin_addr.s_addr, peer_ip_adress, sizeof(peer_ip_adress));
+      char peer_ip[32];
+      inet_ntop(AF_INET, &peeraddr.sin_addr.s_addr, peer_ip, sizeof(peer_ip));
 
-      printf("%s\n", peer_ip_adress);
+      char rstring[80];
+      if(read(client_sockfd, rstring, 80) == -1){
+        perror("Server Read Error");
+        exit(0);
+      }
+      else{
+        if (strcmp(rstring, "hello\n") == 0){
 
-      submitAnswer(peer_ip_adress, "echo-test");
+        }
+        else{
+          write(client_sockfd, rstring, sizeof(rstring) + 1);
+          submitAnswer(peer_ip, rstring);
+        }
+      }
       break;
     }
   }
@@ -102,7 +111,6 @@ int EchoAssignment::clientMain(const char *server_ip, int port,
     perror("Client Failed : socket\n");
     exit(0);
   }
-  printf("Client: %s %d\n", server_ip, clientfd);
 
   struct sockaddr_in serveraddr;
   memset(&serveraddr, 0, sizeof(serveraddr));
@@ -114,6 +122,24 @@ int EchoAssignment::clientMain(const char *server_ip, int port,
   if (connect(clientfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) != 0){
     perror("Client Failed : connect \n");
     exit(0);
+  }else{
+    //Connect Success
+    char add[3] = "\0";
+    char newcommand[81];
+    strcpy(newcommand, command);
+    strcat(newcommand, add);
+    printf("Client Read : %s", newcommand);
+    write(clientfd, newcommand, sizeof(newcommand) + 1);
+
+    char rstring[80];
+    if(read(clientfd, rstring, 80) == -1){
+      perror("Client Read Error");
+      exit(0);
+    }
+    else{
+      submitAnswer(server_ip, rstring);
+    }
+    close(clientfd);
   }
 
   return 0;
