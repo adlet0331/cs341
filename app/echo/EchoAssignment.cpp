@@ -28,11 +28,47 @@ int EchoAssignment::serverMain(const char *bind_ip, int port,
   // !IMPORTANT: for all system calls, when an error happens, your program must
   // return. e.g., if an read() call return -1, return -1 for serverMain.
 
-  int server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  
-  submitAnswer("10.0.0.2", "echo-test");
+  int sockfd;
+  if ((sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == 0){
+    //error
+    perror("Failed : socket\n");
+    exit(0);
+  }
 
-  close(server);
+  struct sockaddr_in serveraddr;
+  memset(&serveraddr, 0, sizeof(serveraddr));
+
+  serveraddr.sin_family = AF_INET;
+  serveraddr.sin_addr.s_addr = htonl(inet_addr(bind_ip));
+  serveraddr.sin_port = htons(port);
+
+  if (bind(sockfd, (struct sockaddr *)&serveraddr, sizeof(serveraddr)) != 0){
+    perror("Failed : bind\n");
+    exit(0);
+  }
+
+  if (listen(sockfd, 10) != 0){
+    perror("Failed : listen\n");
+    exit(0);
+  }
+
+  int client_sockfd;
+  struct sockaddr_in clientaddr;
+  socklen_t sizeof_clientaddr = (socklen_t) sizeof(clientaddr);
+
+  while(1){
+    client_sockfd = accept(sockfd, (struct sockaddr *) &clientaddr, &sizeof_clientaddr);
+
+    if(client_sockfd != -1){
+      submitAnswer("10.0.0.2", "accept Success");
+    }
+    else{
+      perror("Failed : accept\n");
+      exit(0);
+    }
+  }
+
+  close(sockfd);
   return 0;
 }
 
@@ -43,9 +79,19 @@ int EchoAssignment::clientMain(const char *server_ip, int port,
   // !IMPORTANT: for all system calls, when an error happens, your program must
   // return. e.g., if an read() call return -1, return -1 for clientMain.
 
-  int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  
-  submitAnswer(server_ip, "echo-test");
+  int clientfd;
+  if ((clientfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == 0){
+    //error
+    perror("Failed : socket\n");
+    exit(0);
+  }
+
+  struct sockaddr_in serveraddr;
+
+  if (connect(clientfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) != 0){
+    perror("Failed : connect \n");
+    exit(0);
+  }
 
   return 0;
 }
