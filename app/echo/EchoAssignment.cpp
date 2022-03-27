@@ -60,11 +60,12 @@ int EchoAssignment::serverMain(const char *bind_ip, int port,
     client_sockfd = accept(sockfd, (struct sockaddr *) &clientaddr, &sizeof_clientaddr);
 
     if(client_sockfd == -1){
-      //perror("Server Failed : accept\n");
-      //exit(0);
+      close(sockfd);
+      return 0;
     }
     else{
       //Accept Success
+      //Get Peer Name
       struct sockaddr_in peeraddr;
       socklen_t sizeof_peeraddr = (socklen_t) sizeof(peeraddr);
       memset(&serveraddr, 0x00, sizeof(peeraddr));
@@ -76,19 +77,40 @@ int EchoAssignment::serverMain(const char *bind_ip, int port,
       char peer_ip[32];
       inet_ntop(AF_INET, &peeraddr.sin_addr.s_addr, peer_ip, sizeof(peer_ip));
 
+      //Get Sock Name
+      struct sockaddr_in curr_sockaddr;
+      socklen_t sizeof_curr_sockaddr = (socklen_t) sizeof(curr_sockaddr);
+      memset(&serveraddr, 0x00, sizeof(curr_sockaddr));
+
+      if(getsockname(client_sockfd, (struct sockaddr *) &curr_sockaddr, &sizeof_curr_sockaddr) == -1){
+        perror("GetSockName Failed\n");
+      }
+
+      char sock_ip[32];
+      inet_ntop(AF_INET, &curr_sockaddr.sin_addr.s_addr, sock_ip, sizeof(sock_ip));
+
+      //Read
       char rstring[80];
       if(read(client_sockfd, rstring, 80) == -1){
         perror("Server Read Error");
         exit(0);
       }
       else{
-        if (strcmp(rstring, "hello\n") == 0){
-
+        char response[80];
+        if (strcmp(rstring, "hello") == 0){
+          sprintf(response, "%s", server_hello);
+        }
+        else if (strcmp(rstring, "whoami") == 0){
+          sprintf(response, "%s", peer_ip);
+        }
+        else if (strcmp(rstring, "whoru") == 0){
+          sprintf(response, "%s", sock_ip);
         }
         else{
-          write(client_sockfd, rstring, sizeof(rstring) + 1);
-          submitAnswer(peer_ip, rstring);
+          sprintf(response, "%s", rstring);
         }
+        write(client_sockfd, response, sizeof(response));
+        submitAnswer(peer_ip, rstring);
       }
       break;
     }
@@ -128,7 +150,6 @@ int EchoAssignment::clientMain(const char *server_ip, int port,
     char newcommand[81];
     strcpy(newcommand, command);
     strcat(newcommand, add);
-    printf("Client Read : %s", newcommand);
     write(clientfd, newcommand, sizeof(newcommand) + 1);
 
     char rstring[80];
