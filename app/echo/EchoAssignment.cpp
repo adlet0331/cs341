@@ -88,7 +88,11 @@ int EchoAssignment::clientMain(const char *server_ip, int port,
 
   struct sockaddr_in serveraddr;
 
-  if (connect(clientfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) != 0){
+  serveraddr.sin_family = AF_INET;
+  serveraddr.sin_addr.s_addr=inet_addr(server_ip);
+  serveraddr.sin_port = htons(port);
+
+  if (connect(clientfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) == -1){
     perror("Failed : connect \n");
     exit(0);
   }
