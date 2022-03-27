@@ -112,7 +112,6 @@ int EchoAssignment::serverMain(const char *bind_ip, int port,
         write(client_sockfd, response, sizeof(response));
         submitAnswer(peer_ip, rstring);
       }
-      break;
     }
   }
 
