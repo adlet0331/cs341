@@ -38,7 +38,7 @@ protected:
 
 private:
   virtual int syscall_socket(UUID syscallUUID, int pid, int domain, int type, int protocol);
-  virtual int syscall_close(UUID syscallUUID, int pid, int domain);
+  virtual int syscall_close(UUID syscallUUID, int pid, int sockfd);
   virtual int syscall_connect(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen);
   virtual int syscall_listen(UUID syscallUUID, int pid, int sockfd, int backlog);
   virtual int syscall_accept(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);

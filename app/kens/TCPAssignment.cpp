@@ -12,8 +12,19 @@
 #include <E/Networking/E_Networking.hpp>
 #include <E/Networking/E_Packet.hpp>
 #include <cerrno>
+#include <list>
 
 namespace E {
+
+// Data Structure for Saving 
+struct BindedPort{
+  uint32_t adress;
+  uint16_t port;
+};
+
+std::list<uint16_t> ANYbindedPortList;
+std::list<BindedPort> bindedPortList;
+
 
 TCPAssignment::TCPAssignment(Host &host)
     : HostModule("TCP", host), RoutingInfoInterface(host),
@@ -23,7 +34,7 @@ TCPAssignment::TCPAssignment(Host &host)
 TCPAssignment::~TCPAssignment() {}
 
 void TCPAssignment::initialize() {
-
+  
 }
 
 void TCPAssignment::finalize() {}
@@ -34,15 +45,16 @@ void TCPAssignment::systemCallback(UUID syscallUUID, int pid,
   // Remove below
   //(void)syscallUUID;
   //(void)pid;
+  int returnInt;
 
   switch (param.syscallNumber) {
   case SOCKET:
     //2번째 인자 추가함
-     this->syscall_socket(syscallUUID, pid, std::get<int>(param.params[0]),
+    returnInt = this->syscall_socket(syscallUUID, pid, std::get<int>(param.params[0]),
             std::get<int>(param.params[1]), std::get<int>(param.params[2]));
     break;
   case CLOSE:
-     this->syscall_close(syscallUUID, pid, std::get<int>(param.params[0]));
+     returnInt = this->syscall_close(syscallUUID, pid, std::get<int>(param.params[0]));
     break;
   case READ:
     // this->syscall_read(syscallUUID, pid, std::get<int>(param.params[0]),
@@ -54,51 +66,71 @@ void TCPAssignment::systemCallback(UUID syscallUUID, int pid,
     //                     std::get<void *>(param.params[1]),
     //                     std::get<int>(param.params[2]));
     break;
-  case CONNECT:
+  case CONNECT: {
      this->syscall_connect(
          syscallUUID, pid, std::get<int>(param.params[0]),
          static_cast<struct sockaddr *>(std::get<void *>(param.params[1])),
          (socklen_t)std::get<int>(param.params[2]));
     break;
-  case LISTEN:
+  }
+  case LISTEN:{
      this->syscall_listen(syscallUUID, pid, std::get<int>(param.params[0]),
                           std::get<int>(param.params[1]));
     break;
-  case ACCEPT:
+  }
+  case ACCEPT:{
+
      this->syscall_accept(
          syscallUUID, pid, std::get<int>(param.params[0]),
          static_cast<struct sockaddr *>(std::get<void *>(param.params[1])),
          static_cast<socklen_t *>(std::get<void *>(param.params[2])));
     break;
-  case BIND:
-     this->syscall_bind(
+  }
+  case BIND:{
+
+     returnInt = this->syscall_bind(
          syscallUUID, pid, std::get<int>(param.params[0]),
          static_cast<struct sockaddr *>(std::get<void *>(param.params[1])),
          (socklen_t)std::get<int>(param.params[2]));
     break;
-  case GETSOCKNAME:
-     this->syscall_getsockname(
-         syscallUUID, pid, std::get<int>(param.params[0]),
-         static_cast<struct sockaddr *>(std::get<void *>(param.params[1])),
-         static_cast<socklen_t *>(std::get<void *>(param.params[2])));
-    break;
-  case GETPEERNAME:
-     this->syscall_getpeername(
-         syscallUUID, pid, std::get<int>(param.params[0]),
-         static_cast<struct sockaddr *>(std::get<void *>(param.params[1])),
-         static_cast<socklen_t *>(std::get<void *>(param.params[2])));
-    break;
-  default:
-    assert(0);
   }
+  case GETSOCKNAME:{
+
+     returnInt = this->syscall_getsockname(
+         syscallUUID, pid, std::get<int>(param.params[0]),
+         static_cast<struct sockaddr *>(std::get<void *>(param.params[1])),
+         static_cast<socklen_t *>(std::get<void *>(param.params[2])));
+    break;
+  }
+  case GETPEERNAME:{
+
+    printf("GETPEERNAME \n");
+    returnInt = this->syscall_getpeername(
+         syscallUUID, pid, std::get<int>(param.params[0]),
+         static_cast<struct sockaddr *>(std::get<void *>(param.params[1])),
+         static_cast<socklen_t *>(std::get<void *>(param.params[2])));
+    break;
+  }
+    default:{
+      assert(0);
+    }
+  }
+  this->returnSystemCall(syscallUUID, returnInt);
 }
 
 int TCPAssignment::syscall_socket(UUID syscallUUID, int pid, int domain, int type, int protocol){
-  return 1;
+  if (domain != AF_INET) printf("SYSCALL_SOCKET: domain != AF_INET\n");
+  if (type != SOCK_STREAM) printf("SYSCALL_SOCKET: type != SOCK_STREAM\n");
+  if (protocol != IPPROTO_TCP) printf("SYSCALL_SOCKET: protocol != IPPROTO_TCP\n");
+
+  int socketfd = createFileDescriptor(pid);
+
+  return socketfd;
 }
 
-int TCPAssignment::syscall_close(UUID syscallUUID, int pid, int domain){
-  return 1;
+int TCPAssignment::syscall_close(UUID syscallUUID, int pid, int sockfd){
+  removeFileDescriptor(pid, sockfd);
+  return 0;
 }
 
 int TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen){
@@ -114,11 +146,25 @@ int TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct 
 }
 
 int TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen){
-  return 1;
+  uint32_t s_addr = ((sockaddr_in *)addr)->sin_addr.s_addr;
+  uint16_t port = ((sockaddr_in *)addr)->sin_port;
+
+  if (s_addr != 0){
+    struct BindedPort bindedPort;
+    memset(&bindedPort, 0, sizeof(BindedPort));
+    bindedPort.adress = s_addr;
+    bindedPort.port = port;
+    bindedPortList.push_back(bindedPort);
+  }
+  else{
+    ANYbindedPortList.push_back(port);
+  }
+
+  return 0;
 }
 
 int TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
-  return 1;
+  return getsockname(sockfd, addr, addrlen);
 }
 
 int TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
@@ -128,13 +174,13 @@ int TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, st
 
 void TCPAssignment::packetArrived(std::string fromModule, Packet &&packet) {
   // Remove below
-  (void)fromModule;
-  (void)packet;
+  //(void)fromModule;
+  //(void)packet;
 }
 
 void TCPAssignment::timerCallback(std::any payload) {
   // Remove below
-  (void)payload;
+  //(void)payload;
 }
 
 } // namespace E
