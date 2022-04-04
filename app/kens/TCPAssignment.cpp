@@ -198,7 +198,23 @@ int TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct so
 }
 
 int TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
-  return 1;
+  bool flag = false;
+  std::list<BindedPort>::iterator it;
+
+  for(it = bindedPortList.begin(); it != bindedPortList.end(); it++){
+    if(((struct BindedPort)(*it)).fd == sockfd){
+      flag = true;
+      ((sockaddr_in *)addr)->sin_addr.s_addr = ((struct BindedPort)(*it)).address;
+      ((sockaddr_in *)addr)->sin_port = ((struct BindedPort)(*it)).port;
+      ((sockaddr_in *)addr)->sin_family =AF_INET;
+      break;
+    }
+  }
+
+  if (flag)
+    return 0;
+  
+  return -1;
 }
 
 int TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
