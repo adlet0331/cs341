@@ -13,16 +13,18 @@
 #include <E/Networking/E_Packet.hpp>
 #include <cerrno>
 #include <list>
+#include <functional>
 
 namespace E {
 
 // Data Structure for Saving 
 struct BindedPort{
-  uint32_t adress;
+  int pid;
+  int fd;
+  in_addr_t address;
   uint16_t port;
 };
 
-std::list<uint16_t> ANYbindedPortList;
 std::list<BindedPort> bindedPortList;
 
 
@@ -128,9 +130,22 @@ int TCPAssignment::syscall_socket(UUID syscallUUID, int pid, int domain, int typ
   return socketfd;
 }
 
+bool isRemovable(struct BindedPort * bp, int sockfd, int pid){
+  if (bp->fd == sockfd && bp->pid == pid)
+    return true;
+  return false;
+}
+
 int TCPAssignment::syscall_close(UUID syscallUUID, int pid, int sockfd){
   removeFileDescriptor(pid, sockfd);
-  return 0;
+  std::list<BindedPort>::iterator it;
+  for(it = bindedPortList.begin(); it != bindedPortList.end(); ){
+    if (((struct BindedPort)(*it)).fd == sockfd && ((struct BindedPort)(*it)).pid == pid){
+      bindedPortList.erase(it++);
+      return 0;
+    }
+  }
+  return 1;
 }
 
 int TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen){
@@ -149,22 +164,41 @@ int TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct so
   uint32_t s_addr = ((sockaddr_in *)addr)->sin_addr.s_addr;
   uint16_t port = ((sockaddr_in *)addr)->sin_port;
 
-  if (s_addr != 0){
-    struct BindedPort bindedPort;
-    memset(&bindedPort, 0, sizeof(BindedPort));
-    bindedPort.adress = s_addr;
-    bindedPort.port = port;
-    bindedPortList.push_back(bindedPort);
+  bool flag = false;
+  std::list<BindedPort>::iterator it;
+  for(it = bindedPortList.begin(); it != bindedPortList.end(); it++){
+    if(((struct BindedPort)(*it)).pid != pid)
+      continue;
+    if(((struct BindedPort)(*it)).address == s_addr && ((struct BindedPort)(*it)).port == port){
+      flag = true;
+      break;
+    }
+    if(((struct BindedPort)(*it)).address == INADDR_ANY && ((struct BindedPort)(*it)).port == port){
+      flag = true;
+      break;
+    }
+    if(((struct BindedPort)(*it)).fd == sockfd){
+      flag = true;
+      break;
+    }
   }
-  else{
-    ANYbindedPortList.push_back(port);
-  }
+
+  if (flag)
+    return 1;
+
+  struct BindedPort bindedPort;
+  memset(&bindedPort, 0, sizeof(BindedPort));
+  bindedPort.fd = sockfd;
+  bindedPort.pid = pid;
+  bindedPort.address = s_addr;
+  bindedPort.port = port;
+  bindedPortList.push_back(bindedPort);
 
   return 0;
 }
 
 int TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
-  return getsockname(sockfd, addr, addrlen);
+  return 1;
 }
 
 int TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
