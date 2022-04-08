@@ -16,7 +16,42 @@
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 
+using namespace std;
+
 namespace E {
+
+//NotImplemented Yet (Status with Variant)
+
+struct OpenStatus{
+  int pid;
+  int fd;
+  OpenStatus(int pd, int f){
+    pid = pd;
+    fd = f;
+  }
+};
+
+struct BindStatus{
+  int pid;
+  int fd;
+  in_addr_t address;
+  uint16_t port;
+  BindStatus(int pd, int f, in_addr_t addr, uint16_t p){
+    pid = pd;
+    fd = f;
+    address = addr;
+    port = p;
+  }
+};
+
+struct ListenStatus{
+
+};
+
+typedef variant<OpenStatus, BindStatus, ListenStatus> StatusVar;
+typedef int socketFileDescripter;
+
+//NotImplemented Yet (Status with Variant)
 
 class TCPAssignment : public HostModule,
                       private RoutingInfoInterface,
