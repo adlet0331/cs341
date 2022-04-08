@@ -15,8 +15,6 @@
 #include <list>
 #include <functional>
 
-using namespace std;
-
 namespace E {
 
 // Data Structure for Saving 
@@ -27,10 +25,7 @@ struct BindedPort{
   uint16_t port;
 };
 
-list<BindedPort> bindedPortList;
-
-// New Data Structure
-map<socketFileDescripter, StatusVar> socketInfoList;
+std::list<BindedPort> bindedPortList;
 
 
 TCPAssignment::TCPAssignment(Host &host)
@@ -57,65 +52,65 @@ void TCPAssignment::systemCallback(UUID syscallUUID, int pid,
   switch (param.syscallNumber) {
   case SOCKET:
     //2번째 인자 추가함
-    returnInt = this->syscall_socket(syscallUUID, pid, get<int>(param.params[0]),
-            get<int>(param.params[1]), get<int>(param.params[2]));
+    returnInt = this->syscall_socket(syscallUUID, pid, std::get<int>(param.params[0]),
+            std::get<int>(param.params[1]), std::get<int>(param.params[2]));
     break;
   case CLOSE:
-     returnInt = this->syscall_close(syscallUUID, pid, get<int>(param.params[0]));
+     returnInt = this->syscall_close(syscallUUID, pid, std::get<int>(param.params[0]));
     break;
   case READ:
-    // this->syscall_read(syscallUUID, pid, get<int>(param.params[0]),
-    //                    get<void *>(param.params[1]),
-    //                    get<int>(param.params[2]));
+    // this->syscall_read(syscallUUID, pid, std::get<int>(param.params[0]),
+    //                    std::get<void *>(param.params[1]),
+    //                    std::get<int>(param.params[2]));
     break;
   case WRITE:
-    // this->syscall_write(syscallUUID, pid, get<int>(param.params[0]),
-    //                     get<void *>(param.params[1]),
-    //                     get<int>(param.params[2]));
+    // this->syscall_write(syscallUUID, pid, std::get<int>(param.params[0]),
+    //                     std::get<void *>(param.params[1]),
+    //                     std::get<int>(param.params[2]));
     break;
   case CONNECT: {
      this->syscall_connect(
-         syscallUUID, pid, get<int>(param.params[0]),
-         static_cast<struct sockaddr *>(get<void *>(param.params[1])),
-         (socklen_t)get<int>(param.params[2]));
+         syscallUUID, pid, std::get<int>(param.params[0]),
+         static_cast<struct sockaddr *>(std::get<void *>(param.params[1])),
+         (socklen_t)std::get<int>(param.params[2]));
     break;
   }
   case LISTEN:{
-     this->syscall_listen(syscallUUID, pid, get<int>(param.params[0]),
-                          get<int>(param.params[1]));
+     this->syscall_listen(syscallUUID, pid, std::get<int>(param.params[0]),
+                          std::get<int>(param.params[1]));
     break;
   }
   case ACCEPT:{
 
      this->syscall_accept(
-         syscallUUID, pid, get<int>(param.params[0]),
-         static_cast<struct sockaddr *>(get<void *>(param.params[1])),
-         static_cast<socklen_t *>(get<void *>(param.params[2])));
+         syscallUUID, pid, std::get<int>(param.params[0]),
+         static_cast<struct sockaddr *>(std::get<void *>(param.params[1])),
+         static_cast<socklen_t *>(std::get<void *>(param.params[2])));
     break;
   }
   case BIND:{
 
      returnInt = this->syscall_bind(
-         syscallUUID, pid, get<int>(param.params[0]),
-         static_cast<struct sockaddr *>(get<void *>(param.params[1])),
-         (socklen_t)get<int>(param.params[2]));
+         syscallUUID, pid, std::get<int>(param.params[0]),
+         static_cast<struct sockaddr *>(std::get<void *>(param.params[1])),
+         (socklen_t)std::get<int>(param.params[2]));
     break;
   }
   case GETSOCKNAME:{
 
      returnInt = this->syscall_getsockname(
-         syscallUUID, pid, get<int>(param.params[0]),
-         static_cast<struct sockaddr *>(get<void *>(param.params[1])),
-         static_cast<socklen_t *>(get<void *>(param.params[2])));
+         syscallUUID, pid, std::get<int>(param.params[0]),
+         static_cast<struct sockaddr *>(std::get<void *>(param.params[1])),
+         static_cast<socklen_t *>(std::get<void *>(param.params[2])));
     break;
   }
   case GETPEERNAME:{
 
     printf("GETPEERNAME \n");
     returnInt = this->syscall_getpeername(
-         syscallUUID, pid, get<int>(param.params[0]),
-         static_cast<struct sockaddr *>(get<void *>(param.params[1])),
-         static_cast<socklen_t *>(get<void *>(param.params[2])));
+         syscallUUID, pid, std::get<int>(param.params[0]),
+         static_cast<struct sockaddr *>(std::get<void *>(param.params[1])),
+         static_cast<socklen_t *>(std::get<void *>(param.params[2])));
     break;
   }
     default:{
@@ -143,7 +138,7 @@ bool isRemovable(struct BindedPort * bp, int sockfd, int pid){
 
 int TCPAssignment::syscall_close(UUID syscallUUID, int pid, int sockfd){
   removeFileDescriptor(pid, sockfd);
-  list<BindedPort>::iterator it;
+  std::list<BindedPort>::iterator it;
   for(it = bindedPortList.begin(); it != bindedPortList.end(); ){
     if (((struct BindedPort)(*it)).fd == sockfd && ((struct BindedPort)(*it)).pid == pid){
       bindedPortList.erase(it++);
@@ -170,7 +165,7 @@ int TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct so
   uint16_t port = ((sockaddr_in *)addr)->sin_port;
 
   bool flag = false;
-  list<BindedPort>::iterator it;
+  std::list<BindedPort>::iterator it;
   for(it = bindedPortList.begin(); it != bindedPortList.end(); it++){
     if(((struct BindedPort)(*it)).pid != pid)
       continue;
@@ -202,9 +197,9 @@ int TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct so
   return 0;
 }
 
-int TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
+int TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){ //  TODO : addrlen 에 맞춰 짜르기 구현
   bool flag = false;
-  list<BindedPort>::iterator it;
+  std::list<BindedPort>::iterator it;
 
   for(it = bindedPortList.begin(); it != bindedPortList.end(); it++){
     if(((struct BindedPort)(*it)).fd == sockfd){
@@ -227,13 +222,13 @@ int TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, st
 }
 
 
-void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
+void TCPAssignment::packetArrived(std::string fromModule, Packet &&packet) {
   // Remove below
   //(void)fromModule;
   //(void)packet;
 }
 
-void TCPAssignment::timerCallback(any payload) {
+void TCPAssignment::timerCallback(std::any payload) {
   // Remove below
   //(void)payload;
 }
