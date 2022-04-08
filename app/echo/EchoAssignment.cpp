@@ -140,17 +140,8 @@ int EchoAssignment::clientMain(const char *server_ip, int port,
   serveraddr.sin_addr.s_addr = inet_addr(server_ip);
   serveraddr.sin_port = htons(port);
 
-<<<<<<< HEAD
-  serveraddr.sin_family = AF_INET;
-  serveraddr.sin_addr.s_addr=inet_addr(server_ip);
-  serveraddr.sin_port = htons(port);
-
-  if (connect(clientfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) == -1){
-    perror("Failed : connect \n");
-=======
   if (connect(clientfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) != 0){
     perror("Client Failed : connect \n");
->>>>>>> 91b2c9c5ed17f28c10daf3a92758aa0c0f582d36
     exit(0);
   }else{
     //Connect Success
