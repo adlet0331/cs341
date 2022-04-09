@@ -45,7 +45,9 @@ public:
     int processid;
     in_addr_t address;
     uint16_t port;
-    ListeningStatus(UUID uuid, int pid, in_addr_t addr, uint16_t p): syscallUUID{uuid}, processid{pid},address{addr},port{p} {};
+    int queueMaxLen;
+    queue<Packet> packetQueue;
+    ListeningStatus(UUID uuid, int pid, in_addr_t addr, uint16_t p, int len): syscallUUID{uuid}, processid{pid}, address{addr}, port{p}, queueMaxLen{len} {};
     //ListeningStatus() : ListeningStatus(-1, -1, 0, 0) {}
   };
 

@@ -164,25 +164,18 @@ int TCPAssignment::syscall_close(UUID syscallUUID, int pid, int sockfd){
 }
 
 int TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen){
+  
+  
   return 1;
 }
 
 int TCPAssignment::syscall_listen(UUID syscallUUID, int pid, int sockfd, int backlog){
+  struct socket_data::BindStatus* currBindedSocket = get_if<socket_data::BindStatus>(&SocketStatusMap.find(sockfd)->second);
+  if (currBindedSocket == nullptr) return -1;
 
-  struct ListeningSocket listeningSocket;
+  SocketStatusMap[sockfd] = socket_data::ListeningStatus{syscallUUID, pid, currBindedSocket->address, currBindedSocket->port, backlog};
 
-  bool flag = false;
-  list<BindedPort>::iterator it;
-  for(it = bindedPortList.begin(); it != bindedPortList.end(); it++){
-    if(((struct BindedPort)(*it)).pid != pid)
-      continue;
-    if(((struct BindedPort)(*it)).fd == sockfd){
-      flag = true;
-      break;
-    }
-  }
-
-  return 1;
+  return 0;
 }
 
 int TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
