@@ -3,6 +3,7 @@ project(kens)
 # Build KENS
 
 set(kens_SOURCES TCPAssignment.cpp TCPAssignment.hpp)
+set(CMAKE_CXX_FLAGS "-g")
 
 add_library(kens SHARED ${kens_SOURCES})
 

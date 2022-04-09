@@ -193,29 +193,40 @@ int TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct so
   in_addr_t s_addr = ((sockaddr_in *)addr)->sin_addr.s_addr;
   uint16_t port = ((sockaddr_in *)addr)->sin_port;
 
+  // sockfd에 bind 된 socket이 있을 때
   if (SocketStatusMap.find(sockfd) != SocketStatusMap.end()){
+    // Closed 된 소켓 (Open 되어 있는) 있는지 확인 - 있어야 함
+    struct socket_data::ClosedStatus* currClosedSocket = get_if<socket_data::ClosedStatus>(&SocketStatusMap.find(sockfd)->second);
+    if (currClosedSocket == nullptr) return -1;
+
+    // sockfd에 이미 bind 된 애가 있을 때 있는지 확인 - 있으면 안되
+    struct socket_data::BindStatus* currBindSocket = get_if<socket_data::BindStatus>(&SocketStatusMap.find(sockfd)->second);
+    if (currBindSocket != nullptr) return -1;
+
+    // Binded 된 소켓 중 port 가 중복된 것이 있는지 확인
     for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
       int curr_pid = iter->first;
       socket_data::StatusVar& currsock = iter->second;
       struct socket_data::BindStatus* currbindedsock = get_if<socket_data::BindStatus>(&currsock);
-      if (currbindedsock != NULL){
+      if (currbindedsock != nullptr){
         if(currbindedsock->processid != pid) continue;
 
         if(currbindedsock->address == INADDR_ANY && currbindedsock->port == port){
-          return 0;
+          return -1;
         }
         if(currbindedsock->address == s_addr && currbindedsock->port == port){
-          return 0;
+          return -1;
         }
       }
     }
-    SocketStatusMap.erase(sockfd);
+
+    //SocketStatusMap.erase(sockfd);
     SocketStatusMap[sockfd] = socket_data::BindStatus{syscallUUID, pid, s_addr, port};
 
-    return 1;
+    return 0;
   }
   else{
-    return 0;
+    return -1;
   }
 
   /*
