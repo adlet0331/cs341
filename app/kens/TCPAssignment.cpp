@@ -145,28 +145,27 @@ int TCPAssignment::syscall_socket(UUID syscallUUID, int pid, int domain, int typ
   return socketfd;
 }
 
-bool isRemovable(struct BindedPort * bp, int sockfd, int pid){
-  if (bp->fd == sockfd && bp->pid == pid)
-    return true;
-  return false;
-}
-
 int TCPAssignment::syscall_close(UUID syscallUUID, int pid, int sockfd){
   removeFileDescriptor(pid, sockfd);
-  list<BindedPort>::iterator it;
-  for(it = bindedPortList.begin(); it != bindedPortList.end(); ){
-    if (((struct BindedPort)(*it)).fd == sockfd && ((struct BindedPort)(*it)).pid == pid){
-      bindedPortList.erase(it++);
-      return 0;
-    }
+  
+  if (SocketStatusMap.erase(sockfd)){
+    return 0;
   }
-  return 1;
+
+  return -1;
 }
 
 int TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen){
+  struct socket_data::ClosedStatus* currClosedSocket = get_if<socket_data::ClosedStatus>(&SocketStatusMap.find(sockfd)->second);
+  if (currClosedSocket == nullptr) return -1;
+
+  in_addr_t server_address = ((sockaddr_in *)addr)->sin_addr.s_addr;
+  uint16_t server_port = ((sockaddr_in *)addr)->sin_port;
+  // Server 에 Packet 만들어서 보내주기
+
+  // Status Change Listen -> SysSent
   
-  
-  return 1;
+  return 0;
 }
 
 int TCPAssignment::syscall_listen(UUID syscallUUID, int pid, int sockfd, int backlog){
@@ -179,7 +178,20 @@ int TCPAssignment::syscall_listen(UUID syscallUUID, int pid, int sockfd, int bac
 }
 
 int TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
-  return 1;
+  struct socket_data::ListeningStatus* currListeningSocket = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find(sockfd)->second);
+  if (currListeningSocket == nullptr) return -1;
+
+  Packet& packet = currListeningSocket->packetQueue.front();
+  currListeningSocket->packetQueue.pop();
+  // packet 정보 받아오기
+
+  // addr에 Client 정보 넣어주기
+
+  // 2번째 Packet client 쪽에 보내주기
+
+  // Status Change Listen -> SynRcvd
+  
+  return 0;
 }
 
 int TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen){
@@ -242,14 +254,41 @@ int TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, st
 
 
 void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
-  // Remove below
-  //(void)fromModule;
-  //(void)packet;
+  // 온 Packet 정보 받아오기
+  int sender_sockfd = 10;
+  socket_data::StatusVar sock_status_data;
+
+  visit(overloaded{
+    [&](socket_data::ListeningStatus sock_data) {
+      // Client -> Server
+      // Listening queue에 넣어주기
+
+    },
+    [&](socket_data::SysSentStatus sock_data) {
+      // Server -> Client
+      // SYNbit, Seq 넘버 확인. 
+      
+      
+      // Status Change SynRcvd -> ESTAB
+
+    },
+    [&](socket_data::SynRcvdStatus sock_data) {
+      // Client -> Server
+      // ACKbit, ACKnum 확인. ESTAB
+
+
+      // Status Change SysSent -> ESTAB
+
+    },
+    [](auto sock_data) {
+      // 위의 상태와 다른 경우. 에러처리
+
+    },
+  }, sock_status_data);
 }
 
 void TCPAssignment::timerCallback(any payload) {
-  // Remove below
-  //(void)payload;
+  
 }
 
 } // namespace E

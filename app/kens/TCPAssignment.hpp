@@ -51,6 +51,32 @@ public:
     //ListeningStatus() : ListeningStatus(-1, -1, 0, 0) {}
   };
 
+  struct SysSentStatus{
+    UUID syscallUUID;
+    int processid;
+    in_addr_t serverAddress;
+    uint16_t serverPort;
+    in_addr_t myAddress;
+    uint16_t myPort;
+    SysSentStatus(UUID uuid, int pid, in_addr_t saddr, uint16_t sp, in_addr_t caddr, uint16_t cp): syscallUUID{uuid}, processid{pid}, serverAddress{saddr}, serverPort{sp}, myaddress{caddr}, myport{cp} {};
+  };
+
+  struct SynRcvdStatus{
+    UUID syscallUUID;
+    int processid;
+    in_addr_t address;
+    uint16_t port;
+    SynRcvdStatus(UUID uuid, int pid): syscallUUID{uuid}, processid{pid} {};
+  };
+
+  struct EstabStatus{
+    UUID syscallUUID;
+    int processid;
+    in_addr_t serverAddress;
+    uint16_t serverPort;
+    EstabStatus(UUID uuid, int pid): syscallUUID{uuid}, processid{pid} {};
+  };
+
   using StatusVar = variant<ClosedStatus, BindStatus, ListeningStatus>;
 };
 
