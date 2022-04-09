@@ -19,6 +19,11 @@ using namespace std;
 
 namespace E {
 
+// New Data Structure
+
+// key : file descripter
+map<int, socket_data::StatusVar> SocketStatusMap;
+
 // Data Structure for Saving 
 struct BindedPort{
   int pid;
@@ -27,8 +32,14 @@ struct BindedPort{
   uint16_t port;
 };
 
-list<BindedPort> bindedPortList;
+struct ListeningSocket{
+  int backlog;
+  struct BindedPort *bindedPort;
+  queue<int> *waitingqueue;
+};
 
+list<BindedPort> bindedPortList;
+list<ListeningSocket> listeningPortList;
 
 TCPAssignment::TCPAssignment(Host &host)
     : HostModule("TCP", host), RoutingInfoInterface(host),
@@ -129,6 +140,8 @@ int TCPAssignment::syscall_socket(UUID syscallUUID, int pid, int domain, int typ
 
   int socketfd = createFileDescriptor(pid);
 
+  SocketStatusMap[socketfd] = socket_data::ClosedStatus{syscallUUID, pid}; 
+
   return socketfd;
 }
 
@@ -155,6 +168,20 @@ int TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struct
 }
 
 int TCPAssignment::syscall_listen(UUID syscallUUID, int pid, int sockfd, int backlog){
+
+  struct ListeningSocket listeningSocket;
+
+  bool flag = false;
+  list<BindedPort>::iterator it;
+  for(it = bindedPortList.begin(); it != bindedPortList.end(); it++){
+    if(((struct BindedPort)(*it)).pid != pid)
+      continue;
+    if(((struct BindedPort)(*it)).fd == sockfd){
+      flag = true;
+      break;
+    }
+  }
+
   return 1;
 }
 
@@ -163,9 +190,35 @@ int TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct 
 }
 
 int TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen){
-  uint32_t s_addr = ((sockaddr_in *)addr)->sin_addr.s_addr;
+  in_addr_t s_addr = ((sockaddr_in *)addr)->sin_addr.s_addr;
   uint16_t port = ((sockaddr_in *)addr)->sin_port;
 
+  if (SocketStatusMap.find(sockfd) != SocketStatusMap.end()){
+    for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
+      int curr_pid = iter->first;
+      socket_data::StatusVar& currsock = iter->second;
+      struct socket_data::BindStatus* currbindedsock = get_if<socket_data::BindStatus>(&currsock);
+      if (currbindedsock != NULL){
+        if(currbindedsock->processid != pid) continue;
+
+        if(currbindedsock->address == INADDR_ANY && currbindedsock->port == port){
+          return 0;
+        }
+        if(currbindedsock->address == s_addr && currbindedsock->port == port){
+          return 0;
+        }
+      }
+    }
+    SocketStatusMap.erase(sockfd);
+    SocketStatusMap[sockfd] = socket_data::BindStatus{syscallUUID, pid, s_addr, port};
+
+    return 1;
+  }
+  else{
+    return 0;
+  }
+
+  /*
   bool flag = false;
   list<BindedPort>::iterator it;
   for(it = bindedPortList.begin(); it != bindedPortList.end(); it++){
@@ -195,8 +248,9 @@ int TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct so
   bindedPort.address = s_addr;
   bindedPort.port = port;
   bindedPortList.push_back(bindedPort);
-
+  */
   return 0;
+  
 }
 
 int TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){ //  TODO : addrlen 에 맞춰 짜르기 구현

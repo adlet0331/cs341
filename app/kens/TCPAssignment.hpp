@@ -22,34 +22,35 @@ namespace E {
 
 //NotImplemented Yet (Status with Variant)
 
-struct OpenStatus{
-  int pid;
-  int fd;
-  OpenStatus(int pd, int f){
-    pid = pd;
-    fd = f;
-  }
+class socket_data{
+public:
+  struct ClosedStatus{
+    UUID syscallUUID;
+    int processid;
+    ClosedStatus(UUID uuid, int pid): syscallUUID{uuid}, processid{pid}{};
+    ClosedStatus(): ClosedStatus(-1, -1) {}
+  };
+
+  struct BindStatus{
+    UUID syscallUUID; 
+    int processid;
+    in_addr_t address;
+    uint16_t port;
+    BindStatus(UUID uuid, int pid, in_addr_t addr, uint16_t p): syscallUUID{uuid}, processid{pid},address{addr}, port{p} {};
+    //BindStatus() : BindStatus(-1, -1, 0, 0) {}
+  };
+
+  struct ListeningStatus{
+    UUID syscallUUID;
+    int processid;
+    in_addr_t address;
+    uint16_t port;
+    ListeningStatus(UUID uuid, int pid, in_addr_t addr, uint16_t p): syscallUUID{uuid}, processid{pid},address{addr},port{p} {};
+    //ListeningStatus() : ListeningStatus(-1, -1, 0, 0) {}
+  };
+
+  using StatusVar = variant<ClosedStatus, BindStatus, ListeningStatus>;
 };
-
-struct BindStatus{
-  int pid;
-  int fd;
-  in_addr_t address;
-  uint16_t port;
-  BindStatus(int pd, int f, in_addr_t addr, uint16_t p){
-    pid = pd;
-    fd = f;
-    address = addr;
-    port = p;
-  }
-};
-
-struct ListenStatus{
-
-};
-
-typedef variant<OpenStatus, BindStatus, ListenStatus> StatusVar;
-typedef int socketFileDescripter;
 
 //NotImplemented Yet (Status with Variant)
 
@@ -72,14 +73,14 @@ protected:
   virtual void packetArrived(std::string fromModule, Packet &&packet) final;
 
 private:
-  virtual int syscall_socket(UUID syscallUUID, int pid, int domain, int type, int protocol);
-  virtual int syscall_close(UUID syscallUUID, int pid, int sockfd);
-  virtual int syscall_connect(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen);
-  virtual int syscall_listen(UUID syscallUUID, int pid, int sockfd, int backlog);
-  virtual int syscall_accept(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
-  virtual int syscall_bind(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen);
-  virtual int syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
-  virtual int syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
+  int syscall_socket(UUID syscallUUID, int pid, int domain, int type, int protocol);
+  int syscall_close(UUID syscallUUID, int pid, int sockfd);
+  int syscall_connect(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen);
+  int syscall_listen(UUID syscallUUID, int pid, int sockfd, int backlog);
+  int syscall_accept(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
+  int syscall_bind(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen);
+  int syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
+  int syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
 };
 
 class TCPAssignmentProvider {
