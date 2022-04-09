@@ -228,60 +228,19 @@ int TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct so
   else{
     return -1;
   }
-
-  /*
-  bool flag = false;
-  list<BindedPort>::iterator it;
-  for(it = bindedPortList.begin(); it != bindedPortList.end(); it++){
-    if(((struct BindedPort)(*it)).pid != pid)
-      continue;
-    if(((struct BindedPort)(*it)).address == s_addr && ((struct BindedPort)(*it)).port == port){
-      flag = true;
-      break;
-    }
-    if(((struct BindedPort)(*it)).address == INADDR_ANY && ((struct BindedPort)(*it)).port == port){
-      flag = true;
-      break;
-    }
-    if(((struct BindedPort)(*it)).fd == sockfd){
-      flag = true;
-      break;
-    }
-  }
-
-  if (flag)
-    return 1;
-
-  struct BindedPort bindedPort;
-  memset(&bindedPort, 0, sizeof(BindedPort));
-  bindedPort.fd = sockfd;
-  bindedPort.pid = pid;
-  bindedPort.address = s_addr;
-  bindedPort.port = port;
-  bindedPortList.push_back(bindedPort);
-  */
   return 0;
   
 }
 
 int TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){ //  TODO : addrlen 에 맞춰 짜르기 구현
-  bool flag = false;
-  list<BindedPort>::iterator it;
+  struct socket_data::BindStatus* currBindSocket = get_if<socket_data::BindStatus>(&SocketStatusMap.find(sockfd)->second);
+  if (currBindSocket == nullptr) return -1;
 
-  for(it = bindedPortList.begin(); it != bindedPortList.end(); it++){
-    if(((struct BindedPort)(*it)).fd == sockfd){
-      flag = true;
-      ((sockaddr_in *)addr)->sin_addr.s_addr = ((struct BindedPort)(*it)).address;
-      ((sockaddr_in *)addr)->sin_port = ((struct BindedPort)(*it)).port;
-      ((sockaddr_in *)addr)->sin_family =AF_INET;
-      break;
-    }
-  }
+  ((sockaddr_in *)addr)->sin_addr.s_addr = currBindSocket->address;
+  ((sockaddr_in *)addr)->sin_port = currBindSocket->port;
+  ((sockaddr_in *)addr)->sin_family =AF_INET;
 
-  if (flag)
-    return 0;
-  
-  return -1;
+  return 0;
 }
 
 int TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
