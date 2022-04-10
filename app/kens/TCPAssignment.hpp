@@ -93,9 +93,12 @@ public:
   struct EstabStatus{
     UUID syscallUUID;
     int processid;
-    in_addr_t serverAddress;
-    uint16_t serverPort;
-    EstabStatus(UUID uuid, int pid): syscallUUID{uuid}, processid{pid} {};
+    in_addr_t destinationaddress;
+    uint16_t destinationport;
+    in_addr_t sourceaddress;
+    uint16_t sourceport;
+    int destinationFD;
+    EstabStatus(UUID uuid, int pid, in_addr_t daddr, uint16_t dp, in_addr_t saddr, uint16_t sp, int fd): syscallUUID{uuid}, processid{pid}, destinationaddress{daddr}, destinationport{dp}, sourceaddress{saddr}, sourceport{sp}, destinationFD{fd} {};
   };
 
   using ProcessID = int;
@@ -129,14 +132,14 @@ protected:
   virtual void packetArrived(std::string fromModule, Packet &&packet) final;
 
 private:
-  int syscall_socket(UUID syscallUUID, int pid, int domain, int type, int protocol);
-  int syscall_close(UUID syscallUUID, int pid, int sockfd);
-  int syscall_connect(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen);
-  int syscall_listen(UUID syscallUUID, int pid, int sockfd, int backlog);
-  int syscall_accept(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
-  int syscall_bind(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen);
-  int syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
-  int syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
+  void syscall_socket(UUID syscallUUID, int pid, int domain, int type, int protocol);
+  void syscall_close(UUID syscallUUID, int pid, int sockfd);
+  void syscall_connect(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen);
+  void syscall_listen(UUID syscallUUID, int pid, int sockfd, int backlog);
+  void syscall_accept(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
+  void syscall_bind(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen);
+  void syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
+  void syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
 };
 
 class TCPAssignmentProvider {
