@@ -445,21 +445,8 @@ void MyPacket::TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip,
 
   this->pkt.readData(24,buffer,20);
  
-  struct pseudoheader {
-    uint32_t source;
-    uint32_t destination;
-    uint8_t zero;
-    uint8_t protocol;
-    uint16_t length;
-  };
 
-  struct pseudoheader pheader;
-  pheader.source = source_ip;
-  pheader.destination = dest_ip;
-  pheader.zero = 0;
-  pheader.protocol = IPPROTO_TCP;
-  pheader.length = htons((size_t)20);
-  uint16_t checkSum = NetworkUtil::one_sum(buffer,(size_t)20) + NetworkUtil::one_sum((uint8_t *)&pheader, sizeof(pheader));
+  uint16_t checkSum = NetworkUtil::tcp_sum(source_ip,dest_ip,buffer,(size_t)20);
   checkSum = htons(checkSum);
   this->pkt.writeData((size_t)50, &checkSum, (size_t)2);
 }
