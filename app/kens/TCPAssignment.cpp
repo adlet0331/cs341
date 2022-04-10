@@ -24,23 +24,6 @@ namespace E {
 // key : file descripter
 map<socket_data::StatusKey, socket_data::StatusVar> SocketStatusMap;
 
-// Data Structure for Saving 
-struct BindedPort{
-  int pid;
-  int fd;
-  in_addr_t address;
-  uint16_t port;
-};
-
-struct ListeningSocket{
-  int backlog;
-  struct BindedPort *bindedPort;
-  queue<int> *waitingqueue;
-};
-
-list<BindedPort> bindedPortList;
-list<ListeningSocket> listeningPortList;
-
 TCPAssignment::TCPAssignment(Host &host)
     : HostModule("TCP", host), RoutingInfoInterface(host),
       SystemCallInterface(AF_INET, IPPROTO_TCP, host),
@@ -279,32 +262,35 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   in_addr_t senders_destination_ip;
   uint16_t port;
 
-  for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
-      socket_data::SocketFD socketfd = get<0, socket_data::SocketFD>(iter->first);
-      socket_data::ProcessID processid = get<1, socket_data::ProcessID>(iter->first);
-      socket_data::StatusVar& currsock = iter->second;
-      struct socket_data::ListeningStatus* currListeningsock = get_if<socket_data::ListeningStatus>(&currsock);
-      if (currListeningsock != nullptr) continue;
-
-      if(currListeningsock->address == INADDR_ANY && currListeningsock->port == port || 
-      currListeningsock->address == senders_destination_ip && currListeningsock->port == port){
-        UUID uuid = currListeningsock->syscallUUID;
-        int processid = currListeningsock->processid;
-
-        int socketfd = createFileDescriptor(processid);
-        SocketStatusMap[make_pair(socketfd, processid)] = socket_data::SynRcvdStatus{uuid, processid};
-      }
-    }
-
   visit(overloaded{
     [&](socket_data::ListeningStatus sock_data) {
-      // Client -> Server
+      // Client -> Server. 2번째
       // Listening queue에 넣어주기
+      for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
+        socket_data::SocketFD socketfd = get<0, socket_data::SocketFD>(iter->first);
+        socket_data::ProcessID processid = get<1, socket_data::ProcessID>(iter->first);
+        socket_data::StatusVar& currsock = iter->second;
+        struct socket_data::ListeningStatus* currListeningsock = get_if<socket_data::ListeningStatus>(&currsock);
+        // Listening 체크
+        if (currListeningsock != nullptr) continue;
 
-      
+        // 같은 address와 port인지 확인하기
+        if(currListeningsock->address == INADDR_ANY && currListeningsock->port == port || 
+        currListeningsock->address == senders_destination_ip && currListeningsock->port == port){
+          // Client가 연결하고자 하는 ListeningSockt 맞을 때
+          UUID uuid = currListeningsock->syscallUUID;
+          int processid = currListeningsock->processid;
+          in_addr_t server_ip = currListeningsock->address;
+          uint16_t server_port = currListeningsock->port;
+
+          //SynRcvd 상태인 socket_data 생성해서 넣어주기
+          int socketfd = createFileDescriptor(processid);
+          SocketStatusMap[make_pair(socketfd, processid)] = socket_data::SynRcvdStatus{uuid, processid, senders_destination_ip, port, server_ip, server_port};
+        }
+      }
     },
     [&](socket_data::SysSentStatus sock_data) {
-      // Server -> Client
+      // Server -> Client. 2번째
       // SYNbit, Seq 넘버 확인.
       
       
