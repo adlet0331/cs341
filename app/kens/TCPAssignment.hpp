@@ -37,6 +37,8 @@ public:
   uint32_t SeqNum();
   uint32_t ACKNum();
   uint16_t flag(); 
+  void SeqNumAdd(int n);
+  void ACKNumAdd(int n);
 };
 
 //NotImplemented Yet (Status with Variant)

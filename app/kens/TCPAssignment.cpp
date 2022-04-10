@@ -173,7 +173,7 @@ int TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struct
   uint16_t client_ip = NetworkUtil::arrayToUINT64(client_address_array.value());
   
   fstPacket.IPAddrWrite(client_ip,server_ip);
-  fstPacket.TCPHeadWrite(client_ip ,server_ip ,1234,server_port,0,0,0b10);
+  fstPacket.TCPHeadWrite(client_ip ,server_ip ,1244,server_port,0,0,0b10);
 
   sendPacket("IPv4", std::move(fstPacket.pkt));
 
@@ -337,16 +337,23 @@ void MyPacket::IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr) {
 
 void MyPacket::TCPHeadWrite(uint32_t source_ip, uint32_t dest_ip, 
     uint16_t source_port, uint16_t dest_port, uint32_t SeqNum, uint32_t ACKNum, uint16_t flag) {
+  source_port = htons(source_port);
   this->pkt.writeData((size_t)34, &source_port, (size_t)2);
   this->pkt.writeData((size_t)36, &dest_port, (size_t)2);
+  SeqNum = htons(SeqNum);
   this->pkt.writeData((size_t)38, &SeqNum, (size_t)4);
+  ACKNum = htons(ACKNum);
   this->pkt.writeData((size_t)42, &ACKNum, (size_t)4);
 
   flag = htons((0b0101000000000000) + (flag));
   this->pkt.writeData((size_t)46, &flag, (size_t)2);
+  uint16_t window =51200;
+  window = htons(window);
+  this->pkt.writeData((size_t)48, &window, (size_t)2);
   uint8_t buffer[1000];
   this->pkt.readData(34,buffer,20);
   uint16_t checkSum = NetworkUtil::tcp_sum(source_ip,dest_ip, buffer, 20);
+  checkSum = htons(checkSum);
   this->pkt.writeData((size_t)50, &checkSum, (size_t)2);
 }
 
@@ -365,32 +372,50 @@ in_addr_t MyPacket::dest_ip() {
 uint16_t MyPacket::source_port() {
   uint16_t ret;
   this->pkt.readData((size_t)34, &ret, (size_t)2);
+  ret = ntohs(ret);
   return ret;
 }
 
 uint16_t MyPacket::dest_port() {
   uint16_t ret;
   this->pkt.readData((size_t)36, &ret, (size_t)2);
+  ret = ntohs(ret);
   return ret;
 }
 
 uint32_t MyPacket::SeqNum() {
   uint32_t ret;
   this->pkt.readData((size_t)38, &ret, (size_t)4);
+  ret = (ntohl(ret));
   return ret;
 }
 
 uint32_t MyPacket::ACKNum() {
   uint32_t ret;
   this->pkt.readData((size_t)42, &ret, (size_t)4);
+  ret = (ntohl(ret));
   return ret;
 }
 
 uint16_t MyPacket::flag() {
   uint16_t ret;
   this->pkt.readData((size_t)46, &ret, (size_t)2);
-  ret = (ntohs(ret) &0b111);
+  ret = (ntohs(ret) &0b111111);
   return ret;
+}
+
+void MyPacket::ACKNumAdd(int n) {
+  uint32_t ACKNum = this->ACKNum();
+  ACKNum += n;
+  ACKNum = htonl(ACKNum);
+  this->pkt.writeData((size_t)42, &ACKNum, (size_t)4);
+}
+
+void MyPacket::SeqNumAdd(int n) {
+  uint32_t SeqNum = this->SeqNum();
+  SeqNum += n;
+  SeqNum = htonl(SeqNum);
+  this->pkt.writeData((size_t)38, &SeqNum, (size_t)4);
 }
 
 } // namespace E
