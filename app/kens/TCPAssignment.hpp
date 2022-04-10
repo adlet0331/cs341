@@ -36,22 +36,8 @@ public:
   uint16_t dest_port();
   uint32_t SeqNum();
   uint32_t ACKNum();
-  uint8_t flag(); 
+  uint16_t flag(); 
 };
-
-struct IplayerData{
-  in_addr_t source_ip;
-  in_addr_t dest_ip;
-};
-
-struct TCPlayerData{
-  uint16_t source_port;
-  uint16_t dest_ip;
-  uint32_t SeqNum;
-  uint32_t ACKNum;
-  uint16_t flag;
-};
-
 
 //NotImplemented Yet (Status with Variant)
 

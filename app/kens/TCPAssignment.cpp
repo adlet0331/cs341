@@ -172,10 +172,8 @@ int TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struct
   std::optional<ipv4_t> client_address_array = getIPAddr(client_port);
   uint16_t client_ip = NetworkUtil::arrayToUINT64(client_address_array.value());
   
-  int SeqNnum = 1;
-
   fstPacket.IPAddrWrite(client_ip,server_ip);
-  fstPacket.TCPHeadWrite(client_ip ,server_ip ,9999,server_port,SeqNnum,2,0b10);
+  fstPacket.TCPHeadWrite(client_ip ,server_ip ,1234,server_port,0,0,0b10);
 
   sendPacket("IPv4", std::move(fstPacket.pkt));
 
@@ -344,7 +342,7 @@ void MyPacket::TCPHeadWrite(uint32_t source_ip, uint32_t dest_ip,
   this->pkt.writeData((size_t)38, &SeqNum, (size_t)4);
   this->pkt.writeData((size_t)42, &ACKNum, (size_t)4);
 
-  flag = (0b0101<<12) +flag;
+  flag = htons((0b0101000000000000) + (flag));
   this->pkt.writeData((size_t)46, &flag, (size_t)2);
   uint8_t buffer[1000];
   this->pkt.readData(34,buffer,20);
@@ -388,10 +386,10 @@ uint32_t MyPacket::ACKNum() {
   return ret;
 }
 
-uint8_t MyPacket::flag() {
-  uint8_t ret;
+uint16_t MyPacket::flag() {
+  uint16_t ret;
   this->pkt.readData((size_t)46, &ret, (size_t)2);
-
+  ret = (ntohs(ret) &0b111);
   return ret;
 }
 
