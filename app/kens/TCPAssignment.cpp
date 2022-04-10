@@ -47,71 +47,68 @@ void TCPAssignment::systemCallback(UUID syscallUUID, int pid,
   int returnInt;
 
   switch (param.syscallNumber) {
-  case SOCKET:
-    //2번째 인자 추가함
-    this->syscall_socket(syscallUUID, pid, get<int>(param.params[0]),
-            get<int>(param.params[1]), get<int>(param.params[2]));
-    break;
-  case CLOSE:
-    this->syscall_close(syscallUUID, pid, get<int>(param.params[0]));
-    break;
-  case READ:
-    // this->syscall_read(syscallUUID, pid, get<int>(param.params[0]),
-    //                    get<void *>(param.params[1]),
-    //                    get<int>(param.params[2]));
-    break;
-  case WRITE:
-    // this->syscall_write(syscallUUID, pid, get<int>(param.params[0]),
-    //                     get<void *>(param.params[1]),
-    //                     get<int>(param.params[2]));
-    break;
-  case CONNECT: {
-    this->syscall_connect(
-         syscallUUID, pid, get<int>(param.params[0]),
-         static_cast<struct sockaddr *>(get<void *>(param.params[1])),
-         (socklen_t)get<int>(param.params[2]));
-    break;
-  }
-  case LISTEN:{
-    this->syscall_listen(syscallUUID, pid, get<int>(param.params[0]),
-                          get<int>(param.params[1]));
-    break;
-  }
-  case ACCEPT:{
-    this->syscall_accept(
-         syscallUUID, pid, get<int>(param.params[0]),
-         static_cast<struct sockaddr *>(get<void *>(param.params[1])),
-         static_cast<socklen_t *>(get<void *>(param.params[2])));
-    break;
-  }
-  case BIND:{
-    this->syscall_bind(
-         syscallUUID, pid, get<int>(param.params[0]),
-         static_cast<struct sockaddr *>(get<void *>(param.params[1])),
-         (socklen_t)get<int>(param.params[2]));
-    break;
-  }
-  case GETSOCKNAME:{
-    this->syscall_getsockname(
-         syscallUUID, pid, get<int>(param.params[0]),
-         static_cast<struct sockaddr *>(get<void *>(param.params[1])),
-         static_cast<socklen_t *>(get<void *>(param.params[2])));
-    break;
-  }
-  case GETPEERNAME:{
-
-    printf("GETPEERNAME \n");
-    this->syscall_getpeername(
-         syscallUUID, pid, get<int>(param.params[0]),
-         static_cast<struct sockaddr *>(get<void *>(param.params[1])),
-         static_cast<socklen_t *>(get<void *>(param.params[2])));
-    break;
+    case SOCKET:
+      //2번째 인자 추가함
+      this->syscall_socket(syscallUUID, pid, get<int>(param.params[0]),
+              get<int>(param.params[1]), get<int>(param.params[2]));
+      break;
+    case CLOSE:
+      this->syscall_close(syscallUUID, pid, get<int>(param.params[0]));
+      break;
+    case READ:
+      // this->syscall_read(syscallUUID, pid, get<int>(param.params[0]),
+      //                    get<void *>(param.params[1]),
+      //                    get<int>(param.params[2]));
+      break;
+    case WRITE:
+      // this->syscall_write(syscallUUID, pid, get<int>(param.params[0]),
+      //                     get<void *>(param.params[1]),
+      //                     get<int>(param.params[2]));
+      break;
+    case CONNECT: {
+      this->syscall_connect(
+          syscallUUID, pid, get<int>(param.params[0]),
+          static_cast<struct sockaddr *>(get<void *>(param.params[1])),
+          (socklen_t)get<int>(param.params[2]));
+      break;
+    }
+    case LISTEN:{
+      this->syscall_listen(syscallUUID, pid, get<int>(param.params[0]),
+                            get<int>(param.params[1]));
+      break;
+    }
+    case ACCEPT:{
+      this->syscall_accept(
+          syscallUUID, pid, get<int>(param.params[0]),
+          static_cast<struct sockaddr *>(get<void *>(param.params[1])),
+          static_cast<socklen_t *>(get<void *>(param.params[2])));
+      break;
+    }
+    case BIND:{
+      this->syscall_bind(
+          syscallUUID, pid, get<int>(param.params[0]),
+          static_cast<struct sockaddr *>(get<void *>(param.params[1])),
+          (socklen_t)get<int>(param.params[2]));
+      break;
+    }
+    case GETSOCKNAME:{
+      this->syscall_getsockname(
+          syscallUUID, pid, get<int>(param.params[0]),
+          static_cast<struct sockaddr *>(get<void *>(param.params[1])),
+          static_cast<socklen_t *>(get<void *>(param.params[2])));
+      break;
+    }
+    case GETPEERNAME:{
+      this->syscall_getpeername(
+          syscallUUID, pid, get<int>(param.params[0]),
+          static_cast<struct sockaddr *>(get<void *>(param.params[1])),
+          static_cast<socklen_t *>(get<void *>(param.params[2])));
+      break;
   }
     default:{
       assert(0);
     }
   }
-  this->returnSystemCall(syscallUUID, returnInt);
 }
 
 void TCPAssignment::syscall_socket(UUID syscallUUID, int pid, int domain, int type, int protocol){
@@ -183,9 +180,14 @@ void TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struc
     if (client_port >= 2^16)
       this->returnSystemCall(syscallUUID, -1);
   }
-  client_port=1244;
+
+  random_device rd;
+  mt19937 gen(rd());
+  uniform_int_distribution<int> dis(0, 100000000);
+  int randSeqNum = dis(gen);
+
   fstPacket.IPAddrWrite(client_ip,server_ip);
-  fstPacket.TCPHeadWrite(client_ip ,server_ip ,client_port,server_port,4294966149,0,0b10);
+  fstPacket.TCPHeadWrite(client_ip ,server_ip ,client_port,server_port,randSeqNum,0,0b10);
 
   sendPacket("IPv4", std::move(fstPacket.pkt));
 
@@ -213,11 +215,17 @@ void TCPAssignment::syscall_listen(UUID syscallUUID, int pid, int sockfd, int ba
 }
 
 void TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
-  // 2번째 Packet client 쪽에 보내주기
+  struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
+  if (currEstabSocket == nullptr){
+    this->returnSystemCall(syscallUUID, -1);
+    return;
+  }
 
-  // Status Change Listen -> SynRcvd
-  
-  this->returnSystemCall(syscallUUID, sockfd);
+  ((sockaddr_in *)addr)->sin_addr.s_addr = currEstabSocket->destinationaddress;
+  ((sockaddr_in *)addr)->sin_port = currEstabSocket->destinationport;
+  ((sockaddr_in *)addr)->sin_family =AF_INET;
+
+  this->returnSystemCall(syscallUUID, currEstabSocket->destinationFD);
   return;
 }
 
@@ -293,12 +301,30 @@ void TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, s
     return;
   }
 
+  struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
+  if (currEstabSocket != nullptr){
+    ((sockaddr_in *)addr)->sin_addr.s_addr = currEstabSocket->sourceaddress;
+    ((sockaddr_in *)addr)->sin_port = currEstabSocket->sourceport;
+    ((sockaddr_in *)addr)->sin_family =AF_INET;
+
+    this->returnSystemCall(syscallUUID, 0);
+    return;
+  }
+
   this->returnSystemCall(syscallUUID, -1);
 }
 
 void TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
-  
-  this->returnSystemCall(syscallUUID, 0);
+  struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
+  if (currEstabSocket != nullptr){
+    ((sockaddr_in *)addr)->sin_addr.s_addr = currEstabSocket->destinationaddress;
+    ((sockaddr_in *)addr)->sin_port = currEstabSocket->destinationport;
+    ((sockaddr_in *)addr)->sin_family =AF_INET;
+    this->returnSystemCall(syscallUUID, 0);
+    return;
+  }
+
+  this->returnSystemCall(syscallUUID, -1);
   return;
 }
 
@@ -442,11 +468,9 @@ void MyPacket::TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip,
   uint8_t buffer[20]={0,};
   uint16_t zero =0;
   this->pkt.writeData((size_t)50, &zero, (size_t)2);
+  this->pkt.readData(34,buffer,20);
 
-  this->pkt.readData(24,buffer,20);
- 
-
-  uint16_t checkSum = NetworkUtil::tcp_sum(source_ip,dest_ip,buffer,(size_t)20);
+  uint16_t checkSum = 65535 - NetworkUtil::tcp_sum(source_ip,dest_ip,buffer,(size_t)20);
   checkSum = htons(checkSum);
   this->pkt.writeData((size_t)50, &checkSum, (size_t)2);
 }
