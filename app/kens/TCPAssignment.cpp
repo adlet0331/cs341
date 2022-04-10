@@ -140,8 +140,8 @@ int TCPAssignment::syscall_close(UUID syscallUUID, int pid, int sockfd){
 }
 
 int TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen){
-  struct socket_data::ClosedStatus* currClosedSocket = get_if<socket_data::ClosedStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
-  if (currClosedSocket == nullptr) return -1;
+  //struct socket_data::ListeningStatus* currListeningStatus = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
+  //if (currListeningStatus == nullptr) return -1;
 
   in_addr_t server_ip = ((sockaddr_in *)addr)->sin_addr.s_addr;
   uint16_t server_port = ((sockaddr_in *)addr)->sin_port;
@@ -299,23 +299,21 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
     socket_data::SocketFD socketfd = get<0, socket_data::SocketFD>(iter->first);
     socket_data::ProcessID processid = get<1, socket_data::ProcessID>(iter->first);
-    socket_data::StatusVar& currsock = iter->second;
+    socket_data::StatusVar currsock = iter->second;
 
     visit(
       overloaded{
         [&](socket_data::ListeningStatus currListeningsock) {
-          if (currPacketType != PACKET_TYPE_SYN) return;
           // Client -> Server. 1번째.  Server 입장
-          // Listening queue에 넣어주기
-          socket_data::SocketFD socketfd = get<0, socket_data::SocketFD>(iter->first);
-          socket_data::ProcessID processid = get<1, socket_data::ProcessID>(iter->first);
+          if (currPacketType != PACKET_TYPE_SYN) return;
 
-          // Client가 연결하고자 하는 ListeningSockt 맞을 때
+          // Client가 연결하고자 하는 ListeningSocket 맞을 때
           if((currListeningsock.address == INADDR_ANY && currListeningsock.port == senders_port) || 
           (currListeningsock.address == senders_ip && currListeningsock.port == senders_port)){
             // 사이즈가 초과되면 패킷 드롭
             if (currListeningsock.queueMaxLen >= currListeningsock.packetQueue.size()) return;
             
+            // Listening queue에 넣어주기
             currListeningsock.packetQueue.push(packet);
 
             UUID uuid = currListeningsock.syscallUUID;
@@ -345,16 +343,39 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             currListeningsock.packetQueue.pop();
           }
         },
-        [&](socket_data::SysSentStatus sock_data) {
+        [&](socket_data::SysSentStatus currSysSentsock) {
           // Server -> Client. 2번째
           // SYNbit, Seq 넘버 확인.
+          if (currPacketType != PACKET_TYPE_SYNACK) return;
           
+          // Server가 연결하고자 하는 SysSentsocket 맞을 때
+          if((currSysSentsock.myaddress == INADDR_ANY && currSysSentsock.myport == senders_port) || 
+          (currSysSentsock.myaddress == senders_ip && currSysSentsock.myport == senders_port)){
+
+            UUID uuid = currSysSentsock.syscallUUID;
+            int processid = currSysSentsock.processid;
+
+            // 패킷 보내기
+            // ACKbit = 1, ACKnum = 이전 ACKnum + 1
+            MyPacket newpacket{size_t(54)};
+
+            uint32_t beforeAckNum = receivedpacket.ACKNum();
+            
+            newpacket.IPAddrWrite(receivers_ip, senders_ip);
+            newpacket.TCPHeadWrite(receivers_ip ,senders_ip ,receivers_port,receivers_port,0,beforeAckNum+1,0b010000);
+
+            sendPacket("IPv4", std::move(newpacket.pkt));
+            printf("RECEIVE FROM SYSSENT STATUS\n");
+
+            //SynRcvd 상태인 socket_data 생성해서 넣어주기
+            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, receivers_ip, receivers_port, senders_ip, senders_port, socketfd};
+          }
           
           // Make New Socket Data Status: ESTAB
 
         },
         [&](socket_data::SynRcvdStatus sock_data) {
-          // Client -> Server
+          // Client -> Server. 3번째
           // ACKbit, ACKnum 확인. ESTAB
 
 
