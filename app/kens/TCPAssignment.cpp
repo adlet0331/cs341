@@ -161,10 +161,32 @@ int TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struct
 
   in_addr_t server_address = ((sockaddr_in *)addr)->sin_addr.s_addr;
   uint16_t server_port = ((sockaddr_in *)addr)->sin_port;
+
   // Server 에 Packet 만들어서 보내주기
 
   // Status Change Listen -> SysSent
   
+  MyPacket fstPacket((size_t)54);
+  ipv4_t server_address_array = NetworkUtil::UINT64ToArray<4> (server_address);
+  uint16_t client_port = getRoutingTable(server_address_array);
+  std::optional<ipv4_t> client_address_array = getIPAddr(client_port);
+  uint16_t client_address = NetworkUtil::arrayToUINT64(client_address_array.value());
+  
+  int SeqNnum = 1;
+
+  fstPacket.IPAddrWrite(client_address,server_address);
+  fstPacket.TCPHeadWrite(client_address,server_address,9999,server_port,SeqNnum,2,0b10);
+
+  sendPacket("IPv4", std::move(fstPacket.pkt));
+
+  uint32_t buf1 = fstPacket.ACKNum();
+  uint32_t buf2 =fstPacket.SeqNum();
+  uint16_t buf3 = fstPacket.dest_port();
+  uint16_t buf4 = fstPacket.source_port();
+  uint32_t buf5 = fstPacket.source_ip();
+  uint32_t buf6 = fstPacket.dest_ip();
+
+  uint16_t buff = fstPacket.flag();
   return 0;
 }
 
@@ -292,8 +314,66 @@ void TCPAssignment::timerCallback(any payload) {
 }
 
 void MyPacket::IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr) {
-  pkt.writeData((size_t)26, &d_addr, (size_t)4);
-  pkt.writeData((size_t)30, &s_addr, (size_t)4);
+  pkt.writeData((size_t)26, &s_addr, (size_t)4);
+  pkt.writeData((size_t)30, &d_addr, (size_t)4);
+}
+
+void MyPacket::TCPHeadWrite(uint32_t source_ip, uint32_t dest_ip, 
+    uint16_t source_port, uint16_t dest_port, uint32_t SeqNum, uint32_t ACKNum, uint16_t flag) {
+  this->pkt.writeData((size_t)34, &source_port, (size_t)2);
+  this->pkt.writeData((size_t)36, &dest_port, (size_t)2);
+  this->pkt.writeData((size_t)38, &SeqNum, (size_t)4);
+  this->pkt.writeData((size_t)42, &ACKNum, (size_t)4);
+
+  flag = (0b0101<<12) +flag;
+  this->pkt.writeData((size_t)46, &flag, (size_t)2);
+  uint8_t buffer[1000];
+  this->pkt.readData(34,buffer,20);
+  uint16_t checkSum = NetworkUtil::tcp_sum(source_ip,dest_ip, buffer, 20);
+  this->pkt.writeData((size_t)50, &checkSum, (size_t)2);
+}
+
+in_addr_t MyPacket::source_ip() {
+  in_addr_t ret;
+  this->pkt.readData((size_t)26,&ret, (size_t)4);
+  return ret;
+}
+
+in_addr_t MyPacket::dest_ip() {
+  in_addr_t ret;
+  this->pkt.readData((size_t)30,&ret, (size_t)4);
+  return ret;
+}
+
+uint16_t MyPacket::source_port() {
+  uint16_t ret;
+  this->pkt.readData((size_t)34, &ret, (size_t)2);
+  return ret;
+}
+
+uint16_t MyPacket::dest_port() {
+  uint16_t ret;
+  this->pkt.readData((size_t)36, &ret, (size_t)2);
+  return ret;
+}
+
+uint32_t MyPacket::SeqNum() {
+  uint32_t ret;
+  this->pkt.readData((size_t)38, &ret, (size_t)4);
+  return ret;
+}
+
+uint32_t MyPacket::ACKNum() {
+  uint32_t ret;
+  this->pkt.readData((size_t)42, &ret, (size_t)4);
+  return ret;
+}
+
+uint8_t MyPacket::flag() {
+  uint8_t ret;
+  this->pkt.readData((size_t)46, &ret, (size_t)2);
+
+  return ret;
 }
 
 } // namespace E

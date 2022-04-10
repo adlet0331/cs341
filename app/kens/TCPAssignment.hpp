@@ -23,17 +23,35 @@ namespace E {
 class MyPacket {
 private:
   size_t size;
-  in_addr_t source_addr;
-  in_addr_t dest_addr;
 
 public:
   Packet pkt;
-  MyPacket(size_t in_size): pkt{Packet(in_size)} {}
+  MyPacket(size_t in_size): pkt{Packet(in_size)}, size{in_size} {}
   MyPacket(Packet packet): pkt{packet} {}
   void IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr);
-  void IPAddrRead();
-  void TCPHeadWrite(Packet &&packet);
+  void TCPHeadWrite(uint32_t source_ip, uint32_t dest_ip, uint16_t source_port, uint16_t dest_port, uint32_t SeqNum, uint32_t AckNum, uint16_t flag); 
+  in_addr_t source_ip();
+  in_addr_t dest_ip();
+  uint16_t source_port();
+  uint16_t dest_port();
+  uint32_t SeqNum();
+  uint32_t ACKNum();
+  uint8_t flag(); 
 };
+
+struct IplayerData{
+  in_addr_t source_ip;
+  in_addr_t dest_ip;
+};
+
+struct TCPlayerData{
+  uint16_t source_port;
+  uint16_t dest_ip;
+  uint32_t SeqNum;
+  uint32_t ACKNum;
+  uint16_t flag;
+};
+
 
 //NotImplemented Yet (Status with Variant)
 
