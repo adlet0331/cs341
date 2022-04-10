@@ -168,23 +168,55 @@ int TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struct
   
   MyPacket fstPacket((size_t)54);
   ipv4_t server_address_array = NetworkUtil::UINT64ToArray<4> (server_ip);
-  uint16_t client_port = getRoutingTable(server_address_array);
-  std::optional<ipv4_t> client_address_array = getIPAddr(client_port);
+  uint16_t NIC_port = getRoutingTable(server_address_array);
+  std::optional<ipv4_t> client_address_array = getIPAddr(NIC_port);
   uint16_t client_ip = NetworkUtil::arrayToUINT64(client_address_array.value());
-  
+
+  uint16_t client_port = 1111;
+  int flag = 0;
+  while(1)
+  {
+    flag = 1;
+    for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++) {
+      socket_data::StatusKey statuskey = iter->first;
+      socket_data::StatusVar& currsock = iter->second;
+      struct socket_data::BindStatus* currbindedsock = get_if<socket_data::BindStatus>(&currsock);
+      if (currbindedsock != nullptr){
+        if(currbindedsock->processid != pid) continue;
+
+        if(currbindedsock->address == INADDR_ANY && currbindedsock->port == client_port){
+          flag = 0;
+          break;
+        }
+
+        if(currbindedsock->address == client_ip && currbindedsock->port == client_port){
+          flag = 0;
+          break;
+        }
+      }
+    }
+
+    if (flag) break;
+
+    client_port++;
+    if (client_port >= 2^16)
+      return -1;
+  }
+
   fstPacket.IPAddrWrite(client_ip,server_ip);
-  fstPacket.TCPHeadWrite(client_ip ,server_ip ,1244,server_port,0,0,0b10);
+  fstPacket.TCPHeadWrite(client_ip ,server_ip ,client_port,server_port,0,0,0b10);
 
   sendPacket("IPv4", std::move(fstPacket.pkt));
 
-  uint32_t buf1 = fstPacket.ACKNum();
-  uint32_t buf2 =fstPacket.SeqNum();
-  uint16_t buf3 = fstPacket.dest_port();
-  uint16_t buf4 = fstPacket.source_port();
-  uint32_t buf5 = fstPacket.source_ip();
-  uint32_t buf6 = fstPacket.dest_ip();
-
-  uint16_t buff = fstPacket.flag();
+  // uint32_t buf1 = fstPacket.ACKNum();
+  // uint32_t buf2 =fstPacket.SeqNum();
+  // uint16_t buf3 = fstPacket.dest_port();
+  // uint16_t buf4 = fstPacket.source_port();
+  // uint32_t buf5 = fstPacket.source_ip();
+  // uint32_t buf6 = fstPacket.dest_ip();
+  // uint16_t buff = fstPacket.flag();
+  
+  
   return 0;
 }
 
