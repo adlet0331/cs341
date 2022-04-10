@@ -110,10 +110,12 @@ public:
     EstabStatus(UUID uuid, int pid): syscallUUID{uuid}, processid{pid} {};
   };
 
-  using StatusVar = variant<ClosedStatus, BindStatus, ListeningStatus>;
+  using StatusVar = variant<ClosedStatus, BindStatus, ListeningStatus, SysSentStatus, SynRcvdStatus, EstabStatus>;
+  using ProcessID = int;
+  using SocketFD = int;
+  using StatusKey = pair<SocketFD, ProcessID>;
 };
 
-//NotImplemented Yet (Status with Variant)
 class TCPAssignment : public HostModule,
                       private RoutingInfoInterface,
                       public SystemCallInterface,
