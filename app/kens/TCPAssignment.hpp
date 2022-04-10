@@ -86,7 +86,8 @@ public:
     uint16_t clientport;
     in_addr_t myaddress;
     uint16_t myport;
-    SynRcvdStatus(UUID uuid, int pid, in_addr_t saddr, uint16_t sp, in_addr_t caddr, uint16_t cp): syscallUUID{uuid}, processid{pid}, clientaddress{caddr}, clientport{cp}, myaddress{saddr}, myport{sp} {};
+    int seqNum;
+    SynRcvdStatus(UUID uuid, int pid, in_addr_t saddr, uint16_t sp, in_addr_t caddr, uint16_t cp, int seq): syscallUUID{uuid}, processid{pid}, clientaddress{caddr}, clientport{cp}, myaddress{saddr}, myport{sp}, seqNum{seq} {};
   };
 
   struct EstabStatus{
@@ -115,6 +116,12 @@ public:
   virtual void initialize();
   virtual void finalize();
   virtual ~TCPAssignment();
+  enum HandShakePacketType{
+    PACKET_TYPE_NOT_DECLARED,
+    PACKET_TYPE_SYN,
+    PACKET_TYPE_SYNACK,
+    PACKET_TYPE_ACK
+  };
 
 protected:
   virtual void systemCallback(UUID syscallUUID, int pid,

@@ -14,6 +14,7 @@
 #include <cerrno>
 #include <list>
 #include <functional>
+#include <random>
 
 using namespace std;
 
@@ -213,20 +214,11 @@ int TCPAssignment::syscall_listen(UUID syscallUUID, int pid, int sockfd, int bac
 }
 
 int TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
-  struct socket_data::ListeningStatus* currListeningSocket = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
-  if (currListeningSocket == nullptr) return -1;
-
-  Packet& packet = currListeningSocket->packetQueue.front();
-  currListeningSocket->packetQueue.pop();
-  // packet 정보 받아오기
-
-  // addr에 Client 정보 넣어주기
-
   // 2번째 Packet client 쪽에 보내주기
 
   // Status Change Listen -> SynRcvd
   
-  return 0;
+  return 3;
 }
 
 int TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen){
@@ -290,58 +282,92 @@ int TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, st
 
 void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   // 온 Packet 정보 받아오기
-  socket_data::StatusVar sock_status_data;
-  in_addr_t senders_destination_ip;
-  uint16_t port;
+  MyPacket receivedpacket(packet);
+  in_addr_t senders_ip = receivedpacket.dest_ip();
+  uint16_t senders_port = receivedpacket.dest_ip();
+  in_addr_t receivers_ip = receivedpacket.source_ip();
+  uint16_t receivers_port = receivedpacket.source_port();
 
-  visit(overloaded{
-    [&](socket_data::ListeningStatus sock_data) {
-      // Client -> Server. 2번째
-      // Listening queue에 넣어주기
-      for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
-        socket_data::SocketFD socketfd = get<0, socket_data::SocketFD>(iter->first);
-        socket_data::ProcessID processid = get<1, socket_data::ProcessID>(iter->first);
-        socket_data::StatusVar& currsock = iter->second;
-        struct socket_data::ListeningStatus* currListeningsock = get_if<socket_data::ListeningStatus>(&currsock);
-        // Listening 체크
-        if (currListeningsock != nullptr) continue;
+  // 받은 패킷의 상태 확인 -> 3-way handshake 중 몇 번째 패킷인지 SYNbit 와 ACKbit로 판별
+  uint16_t myPacketFlag = receivedpacket.flag() & 0b010010;
+  int currPacketType = PACKET_TYPE_NOT_DECLARED;
+  if      (myPacketFlag == 0b000010) currPacketType = PACKET_TYPE_SYN;
+  else if (myPacketFlag == 0b010010) currPacketType = PACKET_TYPE_SYNACK;
+  else if (myPacketFlag == 0b010000) currPacketType = PACKET_TYPE_ACK;
 
-        // 같은 address와 port인지 확인하기
-        if(currListeningsock->address == INADDR_ANY && currListeningsock->port == port || 
-        currListeningsock->address == senders_destination_ip && currListeningsock->port == port){
+  bool isfinded = false;
+  for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
+    socket_data::SocketFD socketfd = get<0, socket_data::SocketFD>(iter->first);
+    socket_data::ProcessID processid = get<1, socket_data::ProcessID>(iter->first);
+    socket_data::StatusVar& currsock = iter->second;
+
+    visit(
+      overloaded{
+        [&](socket_data::ListeningStatus currListeningsock) {
+          if (currPacketType != PACKET_TYPE_SYN) return;
+          // Client -> Server. 1번째.  Server 입장
+          // Listening queue에 넣어주기
+          socket_data::SocketFD socketfd = get<0, socket_data::SocketFD>(iter->first);
+          socket_data::ProcessID processid = get<1, socket_data::ProcessID>(iter->first);
+
           // Client가 연결하고자 하는 ListeningSockt 맞을 때
-          UUID uuid = currListeningsock->syscallUUID;
-          int processid = currListeningsock->processid;
-          in_addr_t server_ip = currListeningsock->address;
-          uint16_t server_port = currListeningsock->port;
+          if((currListeningsock.address == INADDR_ANY && currListeningsock.port == senders_port) || 
+          (currListeningsock.address == senders_ip && currListeningsock.port == senders_port)){
+            // 사이즈가 초과되면 패킷 드롭
+            if (currListeningsock.queueMaxLen >= currListeningsock.packetQueue.size()) return;
+            
+            currListeningsock.packetQueue.push(packet);
 
-          //SynRcvd 상태인 socket_data 생성해서 넣어주기
-          int socketfd = createFileDescriptor(processid);
-          SocketStatusMap[make_pair(socketfd, processid)] = socket_data::SynRcvdStatus{uuid, processid, senders_destination_ip, port, server_ip, server_port};
-        }
-      }
-    },
-    [&](socket_data::SysSentStatus sock_data) {
-      // Server -> Client. 2번째
-      // SYNbit, Seq 넘버 확인.
-      
-      
-      // Make New Socket Data Status: ESTAB
+            UUID uuid = currListeningsock.syscallUUID;
+            int processid = currListeningsock.processid;
 
-    },
-    [&](socket_data::SynRcvdStatus sock_data) {
-      // Client -> Server
-      // ACKbit, ACKnum 확인. ESTAB
+            // 패킷 보내기
+            // SYNbit = 1, Seq = 랜덤, ACKbit = 1, ACKnum = 이전Seq + 1
+            MyPacket newpacket{size_t(54)};
+
+            random_device rd;
+            mt19937 gen(rd());
+            uniform_int_distribution<int> dis(0, 100000000);
+            int randSeqNum = dis(gen);
+
+            uint32_t beforeSeqNum = receivedpacket.SeqNum();
+            
+            newpacket.IPAddrWrite(receivers_ip, senders_ip);
+            newpacket.TCPHeadWrite(receivers_ip ,senders_ip ,receivers_port,receivers_port,randSeqNum,beforeSeqNum+1,0b010010);
+
+            sendPacket("IPv4", std::move(newpacket.pkt));
+            printf("RECEIVE FROM LISTENING STATUS\n");
+
+            //SynRcvd 상태인 socket_data 생성해서 넣어주기
+            int socketfd = createFileDescriptor(processid);
+            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::SynRcvdStatus{uuid, processid, receivers_ip, receivers_port, senders_ip, senders_port, randSeqNum};
+         
+            currListeningsock.packetQueue.pop();
+          }
+        },
+        [&](socket_data::SysSentStatus sock_data) {
+          // Server -> Client. 2번째
+          // SYNbit, Seq 넘버 확인.
+          
+          
+          // Make New Socket Data Status: ESTAB
+
+        },
+        [&](socket_data::SynRcvdStatus sock_data) {
+          // Client -> Server
+          // ACKbit, ACKnum 확인. ESTAB
 
 
-      // Status Change SysSent -> ESTAB
+          // Status Change SysSent -> ESTAB
 
-    },
-    [](auto sock_data) {
-      // 위의 상태와 다른 경우. 에러처리
+        },
+        [](auto sock_data) {
+          // 위의 상태와 다른 경우. 에러처리
 
-    },
-  }, sock_status_data);
+        },
+      }, currsock);
+      if (isfinded) return;
+  }
 }
 
 void TCPAssignment::timerCallback(any payload) {
