@@ -54,11 +54,11 @@ public:
   struct SysSentStatus{
     UUID syscallUUID;
     int processid;
-    in_addr_t serverAddress;
-    uint16_t serverPort;
-    in_addr_t myAddress;
-    uint16_t myPort;
-    SysSentStatus(UUID uuid, int pid, in_addr_t saddr, uint16_t sp, in_addr_t caddr, uint16_t cp): syscallUUID{uuid}, processid{pid}, serverAddress{saddr}, serverPort{sp}, myaddress{caddr}, myport{cp} {};
+    in_addr_t serveraddress;
+    uint16_t serverport;
+    in_addr_t myaddress;
+    uint16_t myport;
+    SysSentStatus(UUID uuid, int pid, in_addr_t saddr, uint16_t sp, in_addr_t caddr, uint16_t cp): syscallUUID{uuid}, processid{pid}, serveraddress{saddr}, serverport{sp}, myaddress{caddr}, myport{cp} {};
   };
 
   struct SynRcvdStatus{
