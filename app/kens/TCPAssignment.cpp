@@ -154,7 +154,7 @@ int TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struct
   ipv4_t server_address_array = NetworkUtil::UINT64ToArray<4> (server_ip);
   uint16_t NIC_port = getRoutingTable(server_address_array);
   std::optional<ipv4_t> client_address_array = getIPAddr(NIC_port);
-  uint16_t client_ip = NetworkUtil::arrayToUINT64(client_address_array.value());
+  in_addr_t client_ip = NetworkUtil::arrayToUINT64(client_address_array.value());
 
   uint16_t client_port = 1111;
   int flag = 0;
@@ -186,9 +186,9 @@ int TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struct
     if (client_port >= 2^16)
       return -1;
   }
-
+  client_port=1244;
   fstPacket.IPAddrWrite(client_ip,server_ip);
-  fstPacket.TCPHeadWrite(client_ip ,server_ip ,client_port,server_port,0,0,0b10);
+  fstPacket.TCPHeadWrite(client_ip ,server_ip ,client_port,server_port,4294966149,0,0b10);
 
   sendPacket("IPv4", std::move(fstPacket.pkt));
 
@@ -379,14 +379,15 @@ void MyPacket::IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr) {
   pkt.writeData((size_t)30, &d_addr, (size_t)4);
 }
 
-void MyPacket::TCPHeadWrite(uint32_t source_ip, uint32_t dest_ip, 
+void MyPacket::TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip, 
     uint16_t source_port, uint16_t dest_port, uint32_t SeqNum, uint32_t ACKNum, uint16_t flag) {
   source_port = htons(source_port);
   this->pkt.writeData((size_t)34, &source_port, (size_t)2);
+  source_port = htons(source_port);
   this->pkt.writeData((size_t)36, &dest_port, (size_t)2);
-  SeqNum = htons(SeqNum);
+  SeqNum = htonl(SeqNum);
   this->pkt.writeData((size_t)38, &SeqNum, (size_t)4);
-  ACKNum = htons(ACKNum);
+  ACKNum = htonl(ACKNum);
   this->pkt.writeData((size_t)42, &ACKNum, (size_t)4);
 
   flag = htons((0b0101000000000000) + (flag));
@@ -394,9 +395,27 @@ void MyPacket::TCPHeadWrite(uint32_t source_ip, uint32_t dest_ip,
   uint16_t window =51200;
   window = htons(window);
   this->pkt.writeData((size_t)48, &window, (size_t)2);
-  uint8_t buffer[1000];
-  this->pkt.readData(34,buffer,20);
-  uint16_t checkSum = NetworkUtil::tcp_sum(source_ip,dest_ip, buffer, 20);
+  uint8_t buffer[20]={0,};
+  uint16_t zero =0;
+  this->pkt.writeData((size_t)50, &zero, (size_t)2);
+
+  this->pkt.readData(24,buffer,20);
+ 
+  struct pseudoheader {
+    uint32_t source;
+    uint32_t destination;
+    uint8_t zero;
+    uint8_t protocol;
+    uint16_t length;
+  };
+
+  struct pseudoheader pheader;
+  pheader.source = source_ip;
+  pheader.destination = dest_ip;
+  pheader.zero = 0;
+  pheader.protocol = IPPROTO_TCP;
+  pheader.length = htons((size_t)20);
+  uint16_t checkSum = NetworkUtil::one_sum(buffer,(size_t)20) + NetworkUtil::one_sum((uint8_t *)&pheader, sizeof(pheader));
   checkSum = htons(checkSum);
   this->pkt.writeData((size_t)50, &checkSum, (size_t)2);
 }

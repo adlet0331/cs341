@@ -26,7 +26,7 @@ public:
   MyPacket(size_t in_size): pkt{Packet(in_size)} {}
   MyPacket(Packet packet): pkt{packet} {}
   void IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr);
-  void TCPHeadWrite(uint32_t source_ip, uint32_t dest_ip, uint16_t source_port, uint16_t dest_port, uint32_t SeqNum, uint32_t AckNum, uint16_t flag); 
+  void TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip, uint16_t source_port, uint16_t dest_port, uint32_t SeqNum, uint32_t AckNum, uint16_t flag); 
   in_addr_t source_ip();
   in_addr_t dest_ip();
   uint16_t source_port();
