@@ -100,8 +100,8 @@ public:
     EstabStatus(UUID uuid, int pid, in_addr_t daddr, uint16_t dp, in_addr_t saddr, uint16_t sp, int fd): syscallUUID{uuid}, processid{pid}, destinationaddress{daddr}, destinationport{dp}, sourceaddress{saddr}, sourceport{sp}, destinationFD{fd} {};
   };
 
-  using ProcessID = int;
   using SocketFD = int;
+  using ProcessID = int;
   using StatusKey = pair<SocketFD, ProcessID>;
   using StatusVar = variant<ClosedStatus, BindStatus, ListeningStatus, SysSentStatus, SynRcvdStatus, EstabStatus>;
 };

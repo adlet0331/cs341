@@ -109,6 +109,7 @@ void TCPAssignment::systemCallback(UUID syscallUUID, int pid,
       assert(0);
     }
   }
+  return;
 }
 
 void TCPAssignment::syscall_socket(UUID syscallUUID, int pid, int domain, int type, int protocol){
@@ -150,57 +151,47 @@ void TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struc
   std::optional<ipv4_t> client_address_array = getIPAddr(NIC_port);
   in_addr_t client_ip = NetworkUtil::arrayToUINT64(client_address_array.value());
 
-  uint16_t client_port = 1111;
-  int flag = 0;
-  while(1)
+  random_device portrd;
+  mt19937 portgen(portrd());
+  uniform_int_distribution<int> portdis(0, 20000);
+
+  int isAlreadyBinded = false;
+  int client_port;
+  while(!isAlreadyBinded)
   {
-    flag = 1;
+    client_port = portdis(portgen);
+    isAlreadyBinded = true;
     for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++) {
       socket_data::StatusKey statuskey = iter->first;
       socket_data::StatusVar& currsock = iter->second;
       struct socket_data::BindStatus* currbindedsock = get_if<socket_data::BindStatus>(&currsock);
-      if (currbindedsock != nullptr){
-        if(currbindedsock->processid != pid) continue;
+      if (currbindedsock == nullptr) continue;
+      if(currbindedsock->processid != pid) continue;
 
-        if(currbindedsock->address == INADDR_ANY && currbindedsock->port == client_port){
-          flag = 0;
-          break;
-        }
+      if(currbindedsock->address == INADDR_ANY && currbindedsock->port == client_port){
+        isAlreadyBinded = false;
+        break;
+      }
 
-        if(currbindedsock->address == client_ip && currbindedsock->port == client_port){
-          flag = 0;
-          break;
-        }
+      if(currbindedsock->address == client_ip && currbindedsock->port == client_port){
+        isAlreadyBinded = false;
+        break;
       }
     }
-
-    if (flag) break;
-
-    client_port++;
-    if (client_port >= 2^16)
-      this->returnSystemCall(syscallUUID, -1);
   }
 
   random_device rd;
   mt19937 gen(rd());
-  uniform_int_distribution<int> dis(0, 100000000);
+  uniform_int_distribution<int> dis(0, 1000000000);
   int randSeqNum = dis(gen);
 
   fstPacket.IPAddrWrite(client_ip,server_ip);
-  fstPacket.TCPHeadWrite(client_ip ,server_ip ,client_port,server_port,randSeqNum,0,0b10);
+  fstPacket.TCPHeadWrite(client_ip, server_ip, client_port, server_port, randSeqNum, 0, 0b10);
 
   sendPacket("IPv4", std::move(fstPacket.pkt));
 
-  // uint32_t buf1 = fstPacket.ACKNum();
-  // uint32_t buf2 =fstPacket.SeqNum();
-  // uint16_t buf3 = fstPacket.dest_port();
-  // uint16_t buf4 = fstPacket.source_port();
-  // uint32_t buf5 = fstPacket.source_ip();
-  // uint32_t buf6 = fstPacket.dest_ip();
-  // uint16_t buff = fstPacket.flag();
-  
-  
-  this->returnSystemCall(syscallUUID, 0);
+  // Put SYSSENT Status
+  SocketStatusMap[make_pair(sockfd, pid)] = socket_data::SysSentStatus(syscallUUID, pid, server_ip, server_port, client_ip, client_port);
 }
 
 void TCPAssignment::syscall_listen(UUID syscallUUID, int pid, int sockfd, int backlog){
@@ -209,15 +200,13 @@ void TCPAssignment::syscall_listen(UUID syscallUUID, int pid, int sockfd, int ba
 
   SocketStatusMap[make_pair(sockfd, pid)] = socket_data::ListeningStatus{syscallUUID, pid, currBindedSocket->address, currBindedSocket->port, backlog};
 
-  this->returnSystemCall(syscallUUID, 0);
-
   return;
 }
 
 void TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
   struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
   if (currEstabSocket == nullptr){
-    this->returnSystemCall(syscallUUID, -1);
+    this->syscall_accept(syscallUUID, pid, sockfd, addr, addrlen);
     return;
   }
 
@@ -280,7 +269,8 @@ void TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct s
   }
 }
 
-void TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){ //  TODO : addrlen 에 맞춰 짜르기 구현
+void TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){ 
+  // TODO : addrlen 에 맞춰 짜르기 구현
   struct socket_data::BindStatus* currBindSocket = get_if<socket_data::BindStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
   if (currBindSocket != nullptr){
     ((sockaddr_in *)addr)->sin_addr.s_addr = currBindSocket->address;
@@ -295,8 +285,25 @@ void TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, s
   if (currListeningSocket != nullptr){
     ((sockaddr_in *)addr)->sin_addr.s_addr = currListeningSocket->address;
     ((sockaddr_in *)addr)->sin_port = currListeningSocket->port;
-    ((sockaddr_in *)addr)->sin_family =AF_INET;
+    ((sockaddr_in *)addr)->sin_family = AF_INET;
 
+    this->returnSystemCall(syscallUUID, 0);
+    return;
+  }
+  struct socket_data::SynRcvdStatus* currSynRcvdSocket = get_if<socket_data::SynRcvdStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
+  if (currSynRcvdSocket != nullptr){
+    ((sockaddr_in *)addr)->sin_addr.s_addr = currSynRcvdSocket->myaddress;
+    ((sockaddr_in *)addr)->sin_port = currSynRcvdSocket->myport;
+    ((sockaddr_in *)addr)->sin_family = AF_INET;
+    this->returnSystemCall(syscallUUID, 0);
+    return;
+  }
+  
+  struct socket_data::SysSentStatus* currSysSentSocket = get_if<socket_data::SysSentStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
+  if (currSysSentSocket != nullptr){
+    ((sockaddr_in *)addr)->sin_addr.s_addr = currSysSentSocket->myaddress;
+    ((sockaddr_in *)addr)->sin_port = currSysSentSocket->myport;
+    ((sockaddr_in *)addr)->sin_family = AF_INET;
     this->returnSystemCall(syscallUUID, 0);
     return;
   }
@@ -305,7 +312,7 @@ void TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, s
   if (currEstabSocket != nullptr){
     ((sockaddr_in *)addr)->sin_addr.s_addr = currEstabSocket->sourceaddress;
     ((sockaddr_in *)addr)->sin_port = currEstabSocket->sourceport;
-    ((sockaddr_in *)addr)->sin_family =AF_INET;
+    ((sockaddr_in *)addr)->sin_family = AF_INET;
 
     this->returnSystemCall(syscallUUID, 0);
     return;
@@ -315,10 +322,28 @@ void TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, s
 }
 
 void TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
+  struct socket_data::SynRcvdStatus* currSynRcvdSocket = get_if<socket_data::SynRcvdStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
+  if (currSynRcvdSocket != nullptr){
+    ((sockaddr_in *)addr)->sin_addr.s_addr = currSynRcvdSocket->clientaddress;
+    ((sockaddr_in *)addr)->sin_port = currSynRcvdSocket->clientport;
+    ((sockaddr_in *)addr)->sin_family = AF_INET;
+    this->returnSystemCall(syscallUUID, 0);
+    return;
+  }
+  
+  struct socket_data::SysSentStatus* currSysSentSocket = get_if<socket_data::SysSentStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
+  if (currSysSentSocket != nullptr){
+    ((sockaddr_in *)addr)->sin_addr.s_addr = currSysSentSocket->serveraddress;
+    ((sockaddr_in *)addr)->sin_port = currSysSentSocket->serverport;
+    ((sockaddr_in *)addr)->sin_family =AF_INET;
+    this->returnSystemCall(syscallUUID, 0);
+    return;
+  }
+  
   struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
   if (currEstabSocket != nullptr){
     ((sockaddr_in *)addr)->sin_addr.s_addr = currEstabSocket->destinationaddress;
-    ((sockaddr_in *)addr)->sin_port = currEstabSocket->destinationport;
+    ((sockaddr_in *)addr)->sin_port = htons(currEstabSocket->destinationport);
     ((sockaddr_in *)addr)->sin_family =AF_INET;
     this->returnSystemCall(syscallUUID, 0);
     return;
@@ -333,7 +358,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   // 온 Packet 정보 받아오기
   MyPacket receivedpacket(packet);
   in_addr_t senders_ip = receivedpacket.dest_ip();
-  uint16_t senders_port = receivedpacket.dest_ip();
+  uint16_t senders_port = receivedpacket.dest_port();
   in_addr_t receivers_ip = receivedpacket.source_ip();
   uint16_t receivers_port = receivedpacket.source_port();
 
@@ -398,35 +423,49 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           if (currPacketType != PACKET_TYPE_SYNACK) return;
           
           // Server가 연결하고자 하는 SysSentsocket 맞을 때
-          if((currSysSentsock.myaddress == INADDR_ANY && currSysSentsock.myport == senders_port) || 
-          (currSysSentsock.myaddress == senders_ip && currSysSentsock.myport == senders_port)){
+          if((currSysSentsock.myaddress == INADDR_ANY && currSysSentsock.myport == senders_port) || (currSysSentsock.myaddress == senders_ip && currSysSentsock.myport == senders_port)){
+            // TODO : 받은 ACKnum과 이전 SeqNum과 비교. 다르면 거부
 
             UUID uuid = currSysSentsock.syscallUUID;
             int processid = currSysSentsock.processid;
 
             // 패킷 보내기
-            // ACKbit = 1, ACKnum = 이전 ACKnum + 1
+            // ACKbit = 1, ACKnum = 이전 Seqnum + 1
             MyPacket newpacket{size_t(54)};
 
-            uint32_t beforeAckNum = receivedpacket.ACKNum();
+            uint32_t newACKNum = receivedpacket.SeqNum() + 1;
             
             newpacket.IPAddrWrite(receivers_ip, senders_ip);
-            newpacket.TCPHeadWrite(receivers_ip ,senders_ip ,receivers_port,receivers_port,0,beforeAckNum+1,0b010000);
+            newpacket.TCPHeadWrite(receivers_ip, senders_ip, receivers_port, senders_port, 0, newACKNum, 0b010000);
 
             sendPacket("IPv4", std::move(newpacket.pkt));
-            printf("RECEIVE FROM SYSSENT STATUS\n");
 
             //SynRcvd 상태인 socket_data 생성해서 넣어주기
             SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, receivers_ip, receivers_port, senders_ip, senders_port, socketfd};
+          
+            this->returnSystemCall(uuid, 0);
           }
           
           // Make New Socket Data Status: ESTAB
 
         },
-        [&](socket_data::SynRcvdStatus sock_data) {
+        [&](socket_data::SynRcvdStatus currSynRcvdsock) {
           // Client -> Server. 3번째
           // ACKbit, ACKnum 확인. ESTAB
+          if (currPacketType != PACKET_TYPE_ACK) return;
+          
+          // Client가 연결하고자 하는 SysSentsocket 맞을 때
+          if((currSynRcvdsock.myaddress == INADDR_ANY && currSynRcvdsock.myport == receivers_port) || (currSynRcvdsock.myaddress == receivers_ip && currSynRcvdsock.myport == receivers_port)){
+            // TODO : 받은 ACKnum과 이전 SeqNum과 비교. 다르면 거부
 
+            UUID uuid = currSynRcvdsock.syscallUUID;
+            int processid = currSynRcvdsock.processid;
+
+            //SynRcvd 상태인 socket_data 생성해서 넣어주기
+            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, receivers_ip, receivers_port, senders_ip, senders_port, socketfd};
+
+            this->returnSystemCall(uuid, socketfd);
+          }
 
           // Status Change SysSent -> ESTAB
 
