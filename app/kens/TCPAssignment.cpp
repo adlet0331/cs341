@@ -291,4 +291,10 @@ void TCPAssignment::timerCallback(any payload) {
   
 }
 
+void MyPacket::IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr) {
+  pkt.writeData((size_t)26, &d_addr, (size_t)4);
+  pkt.writeData((size_t)30, &s_addr, (size_t)4);
+}
+
 } // namespace E
+
