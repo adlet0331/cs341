@@ -21,12 +21,9 @@ using namespace std;
 namespace E {
 
 class MyPacket {
-private:
-  size_t size;
-
 public:
   Packet pkt;
-  MyPacket(size_t in_size): pkt{Packet(in_size)}, size{in_size} {}
+  MyPacket(size_t in_size): pkt{Packet(in_size)} {}
   MyPacket(Packet packet): pkt{packet} {}
   void IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr);
   void TCPHeadWrite(uint32_t source_ip, uint32_t dest_ip, uint16_t source_port, uint16_t dest_port, uint32_t SeqNum, uint32_t AckNum, uint16_t flag); 
@@ -85,9 +82,11 @@ public:
   struct SynRcvdStatus{
     UUID syscallUUID;
     int processid;
-    in_addr_t address;
-    uint16_t port;
-    SynRcvdStatus(UUID uuid, int pid): syscallUUID{uuid}, processid{pid} {};
+    in_addr_t clientaddress;
+    uint16_t clientport;
+    in_addr_t myaddress;
+    uint16_t myport;
+    SynRcvdStatus(UUID uuid, int pid, in_addr_t saddr, uint16_t sp, in_addr_t caddr, uint16_t cp): syscallUUID{uuid}, processid{pid}, clientaddress{caddr}, clientport{cp}, myaddress{saddr}, myport{sp} {};
   };
 
   struct EstabStatus{
@@ -98,10 +97,10 @@ public:
     EstabStatus(UUID uuid, int pid): syscallUUID{uuid}, processid{pid} {};
   };
 
-  using StatusVar = variant<ClosedStatus, BindStatus, ListeningStatus, SysSentStatus, SynRcvdStatus, EstabStatus>;
   using ProcessID = int;
   using SocketFD = int;
   using StatusKey = pair<SocketFD, ProcessID>;
+  using StatusVar = variant<ClosedStatus, BindStatus, ListeningStatus, SysSentStatus, SynRcvdStatus, EstabStatus>;
 };
 
 class TCPAssignment : public HostModule,
