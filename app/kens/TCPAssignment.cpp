@@ -22,7 +22,7 @@ namespace E {
 // New Data Structure
 
 // key : file descripter
-map<int, socket_data::StatusVar> SocketStatusMap;
+map<socket_data::StatusKey, socket_data::StatusVar> SocketStatusMap;
 
 // Data Structure for Saving 
 struct BindedPort{
@@ -140,7 +140,7 @@ int TCPAssignment::syscall_socket(UUID syscallUUID, int pid, int domain, int typ
 
   int socketfd = createFileDescriptor(pid);
 
-  SocketStatusMap[socketfd] = socket_data::ClosedStatus{syscallUUID, pid}; 
+  SocketStatusMap[make_pair(socketfd, pid)] = socket_data::ClosedStatus{syscallUUID, pid}; 
 
   return socketfd;
 }
@@ -148,7 +148,7 @@ int TCPAssignment::syscall_socket(UUID syscallUUID, int pid, int domain, int typ
 int TCPAssignment::syscall_close(UUID syscallUUID, int pid, int sockfd){
   removeFileDescriptor(pid, sockfd);
   
-  if (SocketStatusMap.erase(sockfd)){
+  if (SocketStatusMap.erase(make_pair(sockfd, pid))){
     return 0;
   }
 
@@ -156,10 +156,10 @@ int TCPAssignment::syscall_close(UUID syscallUUID, int pid, int sockfd){
 }
 
 int TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen){
-  struct socket_data::ClosedStatus* currClosedSocket = get_if<socket_data::ClosedStatus>(&SocketStatusMap.find(sockfd)->second);
+  struct socket_data::ClosedStatus* currClosedSocket = get_if<socket_data::ClosedStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
   if (currClosedSocket == nullptr) return -1;
 
-  in_addr_t server_address = ((sockaddr_in *)addr)->sin_addr.s_addr;
+  in_addr_t server_ip = ((sockaddr_in *)addr)->sin_addr.s_addr;
   uint16_t server_port = ((sockaddr_in *)addr)->sin_port;
   // Server 에 Packet 만들어서 보내주기
 
@@ -169,16 +169,16 @@ int TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struct
 }
 
 int TCPAssignment::syscall_listen(UUID syscallUUID, int pid, int sockfd, int backlog){
-  struct socket_data::BindStatus* currBindedSocket = get_if<socket_data::BindStatus>(&SocketStatusMap.find(sockfd)->second);
+  struct socket_data::BindStatus* currBindedSocket = get_if<socket_data::BindStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
   if (currBindedSocket == nullptr) return -1;
 
-  SocketStatusMap[sockfd] = socket_data::ListeningStatus{syscallUUID, pid, currBindedSocket->address, currBindedSocket->port, backlog};
+  SocketStatusMap[make_pair(sockfd, pid)] = socket_data::ListeningStatus{syscallUUID, pid, currBindedSocket->address, currBindedSocket->port, backlog};
 
   return 0;
 }
 
 int TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
-  struct socket_data::ListeningStatus* currListeningSocket = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find(sockfd)->second);
+  struct socket_data::ListeningStatus* currListeningSocket = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
   if (currListeningSocket == nullptr) return -1;
 
   Packet& packet = currListeningSocket->packetQueue.front();
@@ -199,18 +199,18 @@ int TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct so
   uint16_t port = ((sockaddr_in *)addr)->sin_port;
 
   // sockfd에 bind 된 socket이 있을 때
-  if (SocketStatusMap.find(sockfd) != SocketStatusMap.end()){
+  if (SocketStatusMap.find(make_pair(sockfd, pid)) != SocketStatusMap.end()){
     // Closed 된 소켓 (Open 되어 있는) 있는지 확인 - 있어야 함
-    struct socket_data::ClosedStatus* currClosedSocket = get_if<socket_data::ClosedStatus>(&SocketStatusMap.find(sockfd)->second);
+    struct socket_data::ClosedStatus* currClosedSocket = get_if<socket_data::ClosedStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
     if (currClosedSocket == nullptr) return -1;
 
     // sockfd에 이미 bind 된 애가 있을 때 있는지 확인 - 있으면 안되
-    struct socket_data::BindStatus* currBindSocket = get_if<socket_data::BindStatus>(&SocketStatusMap.find(sockfd)->second);
+    struct socket_data::BindStatus* currBindSocket = get_if<socket_data::BindStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
     if (currBindSocket != nullptr) return -1;
 
     // Binded 된 소켓 중 port 가 중복된 것이 있는지 확인
     for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
-      int curr_pid = iter->first;
+      socket_data::StatusKey statuskey = iter->first;
       socket_data::StatusVar& currsock = iter->second;
       struct socket_data::BindStatus* currbindedsock = get_if<socket_data::BindStatus>(&currsock);
       if (currbindedsock != nullptr){
@@ -226,7 +226,7 @@ int TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct so
     }
 
     //SocketStatusMap.erase(sockfd);
-    SocketStatusMap[sockfd] = socket_data::BindStatus{syscallUUID, pid, s_addr, port};
+    SocketStatusMap[make_pair(sockfd, pid)] = socket_data::BindStatus{syscallUUID, pid, s_addr, port};
 
     return 0;
   }
@@ -238,7 +238,7 @@ int TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct so
 }
 
 int TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){ //  TODO : addrlen 에 맞춰 짜르기 구현
-  struct socket_data::BindStatus* currBindSocket = get_if<socket_data::BindStatus>(&SocketStatusMap.find(sockfd)->second);
+  struct socket_data::BindStatus* currBindSocket = get_if<socket_data::BindStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
   if (currBindSocket == nullptr) return -1;
 
   ((sockaddr_in *)addr)->sin_addr.s_addr = currBindSocket->address;
@@ -255,21 +255,40 @@ int TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, st
 
 void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   // 온 Packet 정보 받아오기
-  int sender_sockfd = 10;
   socket_data::StatusVar sock_status_data;
+  in_addr_t senders_destination_ip;
+  uint16_t port;
+
+  for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
+      socket_data::SocketFD socketfd = get<0, socket_data::SocketFD>(iter->first);
+      socket_data::ProcessID processid = get<1, socket_data::ProcessID>(iter->first);
+      socket_data::StatusVar& currsock = iter->second;
+      struct socket_data::ListeningStatus* currListeningsock = get_if<socket_data::ListeningStatus>(&currsock);
+      if (currListeningsock != nullptr) continue;
+
+      if(currListeningsock->address == INADDR_ANY && currListeningsock->port == port || 
+      currListeningsock->address == senders_destination_ip && currListeningsock->port == port){
+        UUID uuid = currListeningsock->syscallUUID;
+        int processid = currListeningsock->processid;
+
+        int socketfd = createFileDescriptor(processid);
+        SocketStatusMap[make_pair(socketfd, processid)] = socket_data::SynRcvdStatus{uuid, processid};
+      }
+    }
 
   visit(overloaded{
     [&](socket_data::ListeningStatus sock_data) {
       // Client -> Server
       // Listening queue에 넣어주기
 
+      
     },
     [&](socket_data::SysSentStatus sock_data) {
       // Server -> Client
-      // SYNbit, Seq 넘버 확인. 
+      // SYNbit, Seq 넘버 확인.
       
       
-      // Status Change SynRcvd -> ESTAB
+      // Make New Socket Data Status: ESTAB
 
     },
     [&](socket_data::SynRcvdStatus sock_data) {
