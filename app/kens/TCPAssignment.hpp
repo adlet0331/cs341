@@ -68,7 +68,7 @@ public:
     uint16_t port;
     int queueMaxLen;
     list<StatusKey> handshakingStatusKeyList;
-    queue<StatusKey> establishedStatusKeyQueue;
+    list<StatusKey> establishedStatusKeyList;
     ListeningStatus(UUID uuid, int pid, in_addr_t addr, uint16_t p, int len): syscallUUID{uuid}, processid{pid}, address{addr}, port{p}, queueMaxLen{len} {};
   };
 

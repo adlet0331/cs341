@@ -397,8 +397,9 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           // Client가 연결하고자 하는 ListeningSocket 맞을 때
           if((currListeningsock.address == INADDR_ANY && currListeningsock.port == destination_port) || 
           (currListeningsock.address == destination_ip && currListeningsock.port == destination_port)){
-            // 사이즈가 초과되면 패킷 드롭
-            if (currListeningsock.queueMaxLen >= currListeningsock.handshakingStatusKeyList.size()) return;
+            // 사이즈가 같으면 패킷 드롭
+            int asdf = currListeningsock.handshakingStatusKeyList.size();
+            if (currListeningsock.queueMaxLen <= currListeningsock.handshakingStatusKeyList.size()) return;
             // 지금 handshaking 중인 Queue에 넣어주기
             currListeningsock.handshakingStatusKeyList.push_back(make_pair(socketfd, processid));
 
@@ -464,8 +465,9 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           // ACKbit, ACKnum 확인. ESTAB
           if (currPacketType != PACKET_TYPE_ACK) return;
           
-          // Client가 연결하고자 하는 SysSentsocket 맞을 때
-          if((currSynRcvdsock.myaddress == INADDR_ANY && currSynRcvdsock.myport == source_port) || (currSynRcvdsock.myaddress == source_ip && currSynRcvdsock.myport == source_port)){
+          // Client가 연결하고자 하는 SysSentsocket가 맞을 때
+          if((currSynRcvdsock.myaddress == INADDR_ANY && currSynRcvdsock.myport == source_port) || 
+          (currSynRcvdsock.myaddress == source_ip && currSynRcvdsock.myport == source_port)){
             // TODO : 받은 ACKnum과 이전 SeqNum과 비교. 다르면 거부
 
             UUID uuid = currSynRcvdsock.syscallUUID;
@@ -483,26 +485,40 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             }
 
             //Estab 상태인 socket_data 생성해서 넣어주기
-            SocketStatusMap[make_pair(estabfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port, estabfd};
+            SocketStatusMap[make_pair(estabfd, processid)] = socket_data::EstabStatus{uuid, processid, destination_ip, destination_port, source_ip, source_port, estabfd};
 
-            // Estab 된 애들의 queue를 돌면서 같은 pid를 반환
+            thisListeningsocket->establishedStatusKeyList.push_back(make_pair(estabfd, processid));
+
+            // Estab 된 애들의 queue를 돌면서 같은 pid를 가진 애의 fd를 반환
             // 일단 client 쪽 소켓 가져오기
-            struct socket_data::EstabStatus* currEstabSocket = nullptr;
+            struct socket_data::EstabStatus* clientSocket = nullptr;
             bool flag = false;
             for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
-              currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(socketfd, processid))->second);
-              if (currEstabSocket){
-                
-                flag true;
+              struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(socketfd, processid))->second);
+              if (currEstabSocket == nullptr) continue;
+              else {
+                if ((currEstabSocket->sourceaddress == INADDR_ANY && currEstabSocket->sourceport == source_port) &&
+                (currEstabSocket->sourceaddress == source_ip && currEstabSocket->sourceport == source_port)){
+                  clientSocket = currEstabSocket;
+                  break;
+                }
+              }
+            }
+            if (clientSocket == nullptr) this->returnSystemCall(uuid, -1);
+
+            //pid 순회하면서 비교. pop 후 리턴
+            int newsockfd = -1;
+            for (socket_data::StatusKey iter : thisListeningsocket->establishedStatusKeyList){
+              struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(iter.first, iter.second))->second);
+              if (currEstabSocket->processid == clientSocket->processid){
+                newsockfd = currEstabSocket->destinationFD;
+                thisListeningsocket->establishedStatusKeyList.remove(make_pair(currEstabSocket->destinationFD, clientSocket->processid));
                 break;
               }
             }
 
-            this->returnSystemCall(uuid, socketfd);
+            this->returnSystemCall(uuid, newsockfd);
           }
-
-          // Status Change SysSent -> ESTAB
-
         },
         [](auto sock_data) {
           // 위의 상태와 다른 경우. 에러처리
