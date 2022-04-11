@@ -120,7 +120,12 @@ void TCPAssignment::syscall_socket(UUID syscallUUID, int pid, int domain, int ty
 void TCPAssignment::syscall_close(UUID syscallUUID, int pid, int sockfd){
   removeFileDescriptor(pid, sockfd);
   
-  if (SocketStatusMap.erase(make_pair(sockfd, pid))){
+  if (pid >= 0 && sockfd >= 0){
+    SocketStatusMap.erase(make_pair(sockfd, pid));
+    struct socket_data::ListeningStatus* thisListeningsocketPointer = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find({sockfd, pid})->second);
+    thisListeningsocketPointer->handshakingStatusKeyList.remove({sockfd, pid});
+    thisListeningsocketPointer->establishedStatusKeyList.remove({sockfd, pid});
+
     this->returnSystemCallCustom(syscallUUID, 0);
   }
 
@@ -258,7 +263,6 @@ void TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct s
       }
     }
 
-    //SocketStatusMap.erase(sockfd);
     SocketStatusMap[make_pair(sockfd, pid)] = socket_data::BindStatus{syscallUUID, pid, s_addr, port};
 
     this->returnSystemCallCustom(syscallUUID, 0);
