@@ -219,8 +219,9 @@ void TCPAssignment::syscall_listen(UUID syscallUUID, int pid, int sockfd, int ba
 }
 
 void TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
-  in_addr_t listening_ip = ((sockaddr_in *)addr)->sin_addr.s_addr;
-  uint16_t listening_port = ntohs(((sockaddr_in *)addr)->sin_port);
+  struct socket_data::ListeningStatus* currListeningStatus = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
+  in_addr_t listening_ip = currListeningStatus->address;
+  uint16_t listening_port = currListeningStatus->port;
 
   for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
       int listenFd = iter->first.first;
@@ -230,13 +231,10 @@ void TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct
       if (currListeningsock != nullptr){
         if ((currListeningsock->address == INADDR_ANY && currListeningsock->port == listening_port) &&
         (currListeningsock->address == listening_ip && currListeningsock->port == listening_port)){
-          //해당하는 Listening sock
-          if(!currListeningsock->establishedStatusKeyList.empty()){
-            socket_data::StatusKey establishedKey = currListeningsock->establishedStatusKeyList.front();
-            currListeningsock->establishedStatusKeyList.pop_front();
-            this->returnSystemCallCustom(syscallUUID, establishedKey.first);
-            return;
-          }
+          //해당하는 Listening sock 발견
+          currListeningsock->waitingStatusKeyList.push_back(make_pair(make_pair(sockfd,pid), addr));
+
+          this->catchAccept(listenFd, sockfd, pid);
         }
       }
   }
@@ -383,17 +381,8 @@ void TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, s
 void TCPAssignment::catchAccept(int listeningfd, int socketfd, int processid){
 // 이 소켓의 Listening Socket FD 가져오기. 없을리 없다
   struct socket_data::ListeningStatus* thisListeningsocket = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find(make_pair(listeningfd, processid))->second);
-  if (thisListeningsocket != nullptr && !thisListeningsocket->handshakingStatusKeyList.empty()){
-    for (auto iter = thisListeningsocket->handshakingStatusKeyList.begin(); iter != thisListeningsocket->handshakingStatusKeyList.end(); iter++){
-      if(iter->first == listeningfd && iter->second == processid){
-        // listening 의 backlog에서 제외
-        thisListeningsocket->handshakingStatusKeyList.remove(make_pair(listeningfd, processid));
-        break;
-      }
-    }
-  }
 
-  int newsockfd = -1;
+  // listening socket의 list들 확인
   if (!thisListeningsocket->establishedStatusKeyList.empty()){
     while(!thisListeningsocket->establishedStatusKeyList.empty() && !thisListeningsocket->waitingStatusKeyList.empty()){
       socket_data::SocketFD estabedsocket = thisListeningsocket->establishedStatusKeyList.front().first;
@@ -401,10 +390,10 @@ void TCPAssignment::catchAccept(int listeningfd, int socketfd, int processid){
       pair<int, int> waitingKey = thisListeningsocket->waitingStatusKeyList.front().first;
       struct sockaddr * waitPointer = thisListeningsocket->waitingStatusKeyList.front().second;
 
-      struct socket_data::SysSentStatus* thisSysSentsocket = get_if<socket_data::SysSentStatus>(&SocketStatusMap.find(make_pair(estabedsocket, estabedpid))->second);
+      struct socket_data::EstabStatus* thisEstabsocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(waitingKey.first, waitingKey.second))->second);
 
-      ((sockaddr_in *)waitPointer)->sin_addr.s_addr = thisSysSentsocket->myaddress;
-      ((sockaddr_in *)waitPointer)->sin_port = htons(thisSysSentsocket->myport);
+      ((sockaddr_in *)waitPointer)->sin_addr.s_addr = thisEstabsocket->sourceaddress;
+      ((sockaddr_in *)waitPointer)->sin_port = htons(thisEstabsocket->sourceport);
       ((sockaddr_in *)waitPointer)->sin_family = AF_INET;
 
       thisListeningsocket->establishedStatusKeyList.pop_front();
@@ -527,7 +516,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
               for (auto iter = thisListeningsocket->handshakingStatusKeyList.begin(); iter != thisListeningsocket->handshakingStatusKeyList.end(); iter++){
                 if(iter->first == listeningfd && iter->second == processid){
                   // listening 의 backlog에서 제외
-                  thisListeningsocket->handshakingStatusKeyList.remove(make_pair(listeningfd, processid));
+                  thisListeningsocket->handshakingStatusKeyList.remove(make_pair(socketfd, processid));
                   break;
                 }
               }
@@ -536,48 +525,8 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             //Estab 상태인 socket_data 생성해서 넣어주기
             SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, destination_ip, destination_port, source_ip, source_port};
             thisListeningsocket->establishedStatusKeyList.push_back(make_pair(socketfd, processid));
-
-            // Estab 된 애들의 queue를 돌면서 다른 pid를 가진 애의 fd를 반환
-            struct socket_data::EstabStatus* clientSocket = nullptr;
-            bool flag = false;
-            for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
-              struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(socketfd, processid))->second);
-              if (currEstabSocket == nullptr) continue;
-              else {
-                if ((currEstabSocket->sourceaddress == INADDR_ANY && currEstabSocket->sourceport == source_port) &&
-                (currEstabSocket->sourceaddress == source_ip && currEstabSocket->sourceport == source_port)){
-                  clientSocket = currEstabSocket; // 일단 client 쪽 소켓 가져오기
-                  break;
-                }
-              }
-            }
-            if (clientSocket == nullptr){
-              this->returnSystemCallCustom(uuid, -1);
-              return;
-            }
-            //pid 순회하면서 비교. pop 후 리턴
-            int newsockfd = -1;
-            if (!thisListeningsocket->waitingStatusKeyList.empty() && !thisListeningsocket->establishedStatusKeyList.empty()){
-              int estabedsocket = thisListeningsocket->establishedStatusKeyList.front().first;
-              int estabedpid = thisListeningsocket->establishedStatusKeyList.front().second;
-
-              int waitingsocket = thisListeningsocket->waitingStatusKeyList.front().first.first;
-              int waitingpid = thisListeningsocket->waitingStatusKeyList.front().first.first;
-
-              thisListeningsocket->establishedStatusKeyList.pop_front();
-              thisListeningsocket->waitingStatusKeyList.pop_front();
-
-              this->returnSystemCallCustom(5, estabedsocket);
-              return;
-            }
-            else{
-              for (auto iter : thisListeningsocket->establishedStatusKeyList){
-                socket_data::SocketFD establishedSockFd = iter.first;
-                socket_data::ProcessID establishedPid = iter.second;
-              }
-            }
-
-            this->returnSystemCallCustom(5, newsockfd);
+            
+            this->catchAccept(listeningfd, socketfd, processid);
           }
         },
         [](auto sock_data) {
