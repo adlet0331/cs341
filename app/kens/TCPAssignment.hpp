@@ -42,6 +42,9 @@ public:
 
 class socket_data{
 public:
+  using SocketFD = int;
+  using ProcessID = int;
+  using StatusKey = pair<SocketFD, ProcessID>;
   struct ClosedStatus{
     UUID syscallUUID;
     int processid;
@@ -64,7 +67,8 @@ public:
     in_addr_t address;
     uint16_t port;
     int queueMaxLen;
-    queue<Packet> packetQueue;
+    list<StatusKey> handshakingStatusKeyList;
+    queue<StatusKey> establishedStatusKeyQueue;
     ListeningStatus(UUID uuid, int pid, in_addr_t addr, uint16_t p, int len): syscallUUID{uuid}, processid{pid}, address{addr}, port{p}, queueMaxLen{len} {};
   };
 
@@ -81,12 +85,14 @@ public:
   struct SynRcvdStatus{
     UUID syscallUUID;
     int processid;
+    SocketFD listeningfd;
     in_addr_t clientaddress;
     uint16_t clientport;
     in_addr_t myaddress;
     uint16_t myport;
     int seqNum;
-    SynRcvdStatus(UUID uuid, int pid, in_addr_t saddr, uint16_t sp, in_addr_t caddr, uint16_t cp, int seq): syscallUUID{uuid}, processid{pid}, clientaddress{caddr}, clientport{cp}, myaddress{saddr}, myport{sp}, seqNum{seq} {};
+    int myFd;
+    SynRcvdStatus(UUID uuid, int pid, int lfd, int lpid, in_addr_t saddr, uint16_t sp, in_addr_t caddr, uint16_t cp, int seq, int mfd): syscallUUID{uuid}, processid{pid}, clientaddress{caddr}, clientport{cp}, myaddress{saddr}, myport{sp}, seqNum{seq}, myFd{mfd} {};
   };
 
   struct EstabStatus{
@@ -100,9 +106,6 @@ public:
     EstabStatus(UUID uuid, int pid, in_addr_t daddr, uint16_t dp, in_addr_t saddr, uint16_t sp, int fd): syscallUUID{uuid}, processid{pid}, destinationaddress{daddr}, destinationport{dp}, sourceaddress{saddr}, sourceport{sp}, destinationFD{fd} {};
   };
 
-  using SocketFD = int;
-  using ProcessID = int;
-  using StatusKey = pair<SocketFD, ProcessID>;
   using StatusVar = variant<ClosedStatus, BindStatus, ListeningStatus, SysSentStatus, SynRcvdStatus, EstabStatus>;
 };
 

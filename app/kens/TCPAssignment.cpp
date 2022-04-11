@@ -209,7 +209,8 @@ void TCPAssignment::syscall_listen(UUID syscallUUID, int pid, int sockfd, int ba
   struct socket_data::BindStatus* currBindedSocket = get_if<socket_data::BindStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
   if (currBindedSocket == nullptr) this->returnSystemCall(syscallUUID, -1);
 
-
+  std::queue<socket_data::StatusKey> newqueue1;
+  std::queue<socket_data::StatusKey> newqueue2;
   SocketStatusMap[make_pair(sockfd, pid)] = socket_data::ListeningStatus{syscallUUID, pid, currBindedSocket->address, currBindedSocket->port, backlog};
 
   return;
@@ -369,10 +370,10 @@ void TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, s
 void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   // 온 Packet 정보 받아오기
   MyPacket receivedpacket(packet);
-  in_addr_t senders_ip = receivedpacket.dest_ip();
-  uint16_t senders_port = receivedpacket.dest_port();
-  in_addr_t receivers_ip = receivedpacket.source_ip();
-  uint16_t receivers_port = receivedpacket.source_port();
+  in_addr_t destination_ip = receivedpacket.dest_ip();
+  uint16_t destination_port = receivedpacket.dest_port();
+  in_addr_t source_ip = receivedpacket.source_ip();
+  uint16_t source_port = receivedpacket.source_port();
 
   // 받은 패킷의 상태 확인 -> 3-way handshake 중 몇 번째 패킷인지 SYNbit 와 ACKbit로 판별
   uint16_t myPacketFlag = receivedpacket.flag() & 0b010010;
@@ -394,14 +395,12 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           if (currPacketType != PACKET_TYPE_SYN) return;
 
           // Client가 연결하고자 하는 ListeningSocket 맞을 때
-          if((currListeningsock.address == INADDR_ANY && currListeningsock.port == receivers_port) || 
-          (currListeningsock.address == senders_ip && currListeningsock.port == receivers_port)){
+          if((currListeningsock.address == INADDR_ANY && currListeningsock.port == destination_port) || 
+          (currListeningsock.address == destination_ip && currListeningsock.port == destination_port)){
             // 사이즈가 초과되면 패킷 드롭
-            if (currListeningsock.queueMaxLen >= currListeningsock.packetQueue.size()) return;
-            
-            // Listening queue에 넣어주기
-            //currListeningsock.packetQueue.push(packet);
-            //currListeningsock.packetQueue.pop();
+            if (currListeningsock.queueMaxLen >= currListeningsock.handshakingStatusKeyList.size()) return;
+            // 지금 handshaking 중인 Queue에 넣어주기
+            currListeningsock.handshakingStatusKeyList.push_back(make_pair(socketfd, processid));
 
             UUID uuid = currListeningsock.syscallUUID;
             int processid = currListeningsock.processid;
@@ -417,15 +416,14 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
             uint32_t beforeSeqNum = receivedpacket.SeqNum();
             
-            newpacket.IPAddrWrite(receivers_ip, senders_ip);
-            newpacket.TCPHeadWrite(receivers_ip ,senders_ip ,receivers_port,receivers_port,randSeqNum,beforeSeqNum+1,0b010010);
+            newpacket.IPAddrWrite(source_ip, destination_ip);
+            newpacket.TCPHeadWrite(source_ip ,destination_ip ,source_port,source_port,randSeqNum,beforeSeqNum+1,0b010010);
 
             sendPacket("IPv4", std::move(newpacket.pkt));
-            printf("RECEIVE FROM LISTENING STATUS\n");
 
             //SynRcvd 상태인 socket_data 생성해서 넣어주기
-            int socketfd = createFileDescriptor(processid);
-            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::SynRcvdStatus{uuid, processid, receivers_ip, receivers_port, senders_ip, senders_port, randSeqNum};
+            int newsockfd = createFileDescriptor(processid);
+            SocketStatusMap[make_pair(newsockfd, processid)] = socket_data::SynRcvdStatus{uuid, processid, socketfd, processid, source_ip, source_port, destination_ip, destination_port, randSeqNum, newsockfd};
           }
         },
         [&](socket_data::SysSentStatus currSysSentsock) {
@@ -434,7 +432,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           if (currPacketType != PACKET_TYPE_SYNACK) return;
           
           // Server가 연결하고자 하는 SysSentsocket 맞을 때
-          if((currSysSentsock.myaddress == INADDR_ANY && currSysSentsock.myport == senders_port) || (currSysSentsock.myaddress == senders_ip && currSysSentsock.myport == senders_port)){
+          if((currSysSentsock.myaddress == INADDR_ANY && currSysSentsock.myport == destination_port) || (currSysSentsock.myaddress == destination_ip && currSysSentsock.myport == destination_port)){
             // TODO : 받은 ACKnum과 이전 SeqNum과 비교. 다르면 거부
 
             UUID uuid = currSysSentsock.syscallUUID;
@@ -446,12 +444,12 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
             uint32_t newACKNum = receivedpacket.SeqNum() + 1;
             
-            newpacket.IPAddrWrite(senders_ip, receivers_ip);
-            newpacket.TCPHeadWrite(senders_ip, receivers_ip, senders_port, receivers_port, 0, newACKNum, 0b010000);
+            newpacket.IPAddrWrite(destination_ip, source_ip);
+            newpacket.TCPHeadWrite(destination_ip, source_ip, destination_port, source_port, 0, newACKNum, 0b010000);
 
             //SynRcvd 상태인 socket_data 생성해서 넣어주기
             // TODO: Server socket fd 받아오기
-            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, receivers_ip, receivers_port, senders_ip, senders_port, socketfd};
+            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port, socketfd};
 
             this->sendPacket("IPv4", std::move(newpacket.pkt));
 
@@ -467,14 +465,38 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           if (currPacketType != PACKET_TYPE_ACK) return;
           
           // Client가 연결하고자 하는 SysSentsocket 맞을 때
-          if((currSynRcvdsock.myaddress == INADDR_ANY && currSynRcvdsock.myport == receivers_port) || (currSynRcvdsock.myaddress == receivers_ip && currSynRcvdsock.myport == receivers_port)){
+          if((currSynRcvdsock.myaddress == INADDR_ANY && currSynRcvdsock.myport == source_port) || (currSynRcvdsock.myaddress == source_ip && currSynRcvdsock.myport == source_port)){
             // TODO : 받은 ACKnum과 이전 SeqNum과 비교. 다르면 거부
 
             UUID uuid = currSynRcvdsock.syscallUUID;
             int processid = currSynRcvdsock.processid;
+            int listeningfd = currSynRcvdsock.listeningfd;
+            int estabfd = currSynRcvdsock.myFd;
 
-            //SynRcvd 상태인 socket_data 생성해서 넣어주기
-            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, receivers_ip, receivers_port, senders_ip, senders_port, socketfd};
+            struct socket_data::ListeningStatus* thisListeningsocket = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find(make_pair(listeningfd, processid))->second);
+
+            for (socket_data::StatusKey iter : thisListeningsocket->handshakingStatusKeyList){
+              if(iter.first == listeningfd && iter.second == processid){
+                thisListeningsocket->handshakingStatusKeyList.remove(make_pair(listeningfd, processid));
+                break;
+              }
+            }
+
+            //Estab 상태인 socket_data 생성해서 넣어주기
+            SocketStatusMap[make_pair(estabfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port, estabfd};
+
+            // Estab 된 애들의 queue를 돌면서 같은 pid를 반환
+            // 일단 client 쪽 소켓 가져오기
+            struct socket_data::EstabStatus* currEstabSocket = nullptr;
+            bool flag = false;
+            for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
+              currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(socketfd, processid))->second);
+              if (currEstabSocket){
+                
+                flag true;
+                break;
+              }
+            }
 
             this->returnSystemCall(uuid, socketfd);
           }
