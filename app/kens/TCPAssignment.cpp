@@ -126,21 +126,22 @@ void TCPAssignment::syscall_close(UUID syscallUUID, int pid, int sockfd){
   removeFileDescriptor(pid, sockfd);
   
   if (pid >= 0 && sockfd >= 0){
+    struct socket_data::EstabStatus* thisListeningsocketPointer = get_if<socket_data::EstabStatus>(&SocketStatusMap.find({sockfd, pid})->second);
     SocketStatusMap.erase(make_pair(sockfd, pid));
-    struct socket_data::ListeningStatus* thisListeningsocketPointer = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find({sockfd, pid})->second);
+    
 
-    for(auto iter = thisListeningsocketPointer->handshakingStatusKeyList.begin(); iter != thisListeningsocketPointer->handshakingStatusKeyList.end(); iter++) {
-      if (iter->first == sockfd && iter->second == pid){
-        thisListeningsocketPointer->handshakingStatusKeyList.remove(make_pair(sockfd, pid));
-        break;
-      }
-    }
-    for(auto iter2 = thisListeningsocketPointer->establishedStatusKeyList.begin(); iter2 != thisListeningsocketPointer->establishedStatusKeyList.end(); iter2++) {
-      if (iter2->first == sockfd && iter2->second == pid){
-        thisListeningsocketPointer->establishedStatusKeyList.remove(make_pair(sockfd, pid));
-        break;
-      }
-    }
+    // for(auto iter = thisListeningsocketPointer->handshakingStatusKeyList.begin(); iter != thisListeningsocketPointer->handshakingStatusKeyList.end(); iter++) {
+    //   if (iter->first == sockfd && iter->second == pid){
+    //     thisListeningsocketPointer->handshakingStatusKeyList.remove({sockfd, pid});
+    //     break;
+    //   }
+    // }
+    // for(auto iter2 = thisListeningsocketPointer->establishedStatusKeyList.begin(); iter2 != thisListeningsocketPointer->establishedStatusKeyList.end(); iter2++) {
+    //   if (iter2->first == sockfd && iter2->second == pid){
+    //     thisListeningsocketPointer->establishedStatusKeyList.remove({sockfd, pid});
+    //     break;
+    //   }
+    // }
 
     this->returnSystemCallCustom(syscallUUID, 0);
   }
@@ -234,9 +235,9 @@ void TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct
   in_addr_t listening_ip = currListeningStatus->address;
   uint16_t listening_port = currListeningStatus->port;
 
-  currListeningStatus->waitingStatusKeyList.push_back(make_pair(make_pair(sockfd,pid), addr));
+  currListeningStatus->waitingStatusKeyList.push_back(make_pair(syscallUUID, addr));
 
-  this->catchAccept(sockfd, pid, syscallUUID);
+  this->catchAccept(sockfd, pid);
   return;
 }
 
@@ -374,7 +375,7 @@ void TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, s
   return;
 }
 
-void TCPAssignment::catchAccept(int listeningfd, int processid, UUID uuid){
+void TCPAssignment::catchAccept(int listeningfd, int processid){
 // 이 소켓의 Listening Socket FD 가져오기. 없을리 없다
   struct socket_data::ListeningStatus* thisListeningsocket = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find({listeningfd, processid})->second);
 
@@ -382,7 +383,7 @@ void TCPAssignment::catchAccept(int listeningfd, int processid, UUID uuid){
   while(!thisListeningsocket->establishedStatusKeyList.empty() && !thisListeningsocket->waitingStatusKeyList.empty()){
     socket_data::SocketFD estabedsocket = thisListeningsocket->establishedStatusKeyList.front().first;
     socket_data::ProcessID estabedpid = thisListeningsocket->establishedStatusKeyList.front().second;
-    pair<int, int> waitingKey = thisListeningsocket->waitingStatusKeyList.front().first;
+    UUID waitingKey = thisListeningsocket->waitingStatusKeyList.front().first;
     struct sockaddr * waitPointer = thisListeningsocket->waitingStatusKeyList.front().second;
 
     struct socket_data::EstabStatus* thisEstabsocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find({estabedsocket, estabedpid})->second);
@@ -396,7 +397,7 @@ void TCPAssignment::catchAccept(int listeningfd, int processid, UUID uuid){
     thisListeningsocket->establishedStatusKeyList.pop_front();
     thisListeningsocket->waitingStatusKeyList.pop_front();
 
-    this->returnSystemCallCustom(uuid, estabedsocket);
+    this->returnSystemCallCustom(waitingKey, estabedsocket);
   }
   return;
 }
@@ -523,7 +524,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port};
             thisListeningsocketPointer->establishedStatusKeyList.push_back(make_pair(socketfd, processid));
             
-            this->catchAccept(listeningfd, processid, uuid);
+            this->catchAccept(listeningfd, processid);
           }
         },
         [](auto sock_data) {
