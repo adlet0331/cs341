@@ -136,29 +136,12 @@ void TCPAssignment::syscall_close(UUID syscallUUID, int pid, int sockfd){
 
 void TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen){
   // 이미 할당된 sockfd가 없음
-  struct socket_data::ClosedStatus* currClosedStatus = get_if<socket_data::ClosedStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
-  if (currClosedStatus == nullptr) this->returnSystemCall(syscallUUID, -1);
+  struct socket_data::ClosedStatus* currClosedSocket = get_if<socket_data::ClosedStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
+  struct socket_data::BindStatus* currBindSocket = get_if<socket_data::BindStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
+  if (currClosedSocket == nullptr && currBindSocket == nullptr) this->returnSystemCall(syscallUUID, -1);
 
   in_addr_t server_ip = ((sockaddr_in *)addr)->sin_addr.s_addr;
-  uint16_t server_port = ((sockaddr_in *)addr)->sin_port;
-
-  // // Map 순회해서 현재 연결할 server의 ip, port 같은거 찾기
-  // for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); ){
-  //   socket_data::StatusKey statuskey = iter->first;
-  //   socket_data::StatusVar& currsock = iter->second;
-  //   // 서버가 Listening State 인 것만 가져와서 봄
-  //   struct socket_data::ListeningStatus* currListeningStatus = get_if<socket_data::ListeningStatus>(&currsock);
-  //   if (currListeningStatus != nullptr && currListeningStatus->processid == pid) {
-  //     if(currListeningStatus->address == INADDR_ANY && currListeningStatus->port == server_port){
-  //       break;
-  //     }
-  //     if(currListeningStatus->address == server_ip && currListeningStatus->port == server_port){
-  //       break;
-  //     }
-  //   }
-  //   // 타겟인 Listening 중인 서버가 없음
-  //   if(++iter == SocketStatusMap.end()) this->returnSystemCall(syscallUUID, -1);
-  // }
+  uint16_t server_port = ntohs(((sockaddr_in *)addr)->sin_port);
 
   // 클라 IP 받기
   ipv4_t server_address_array = NetworkUtil::UINT64ToArray<4> (server_ip);
@@ -213,7 +196,7 @@ void TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struc
   MyPacket fstPacket((size_t)54);
 
   fstPacket.IPAddrWrite(client_ip,server_ip);
-  fstPacket.TCPHeadWrite(client_ip, server_ip, client_port, ntohs(server_port), randSeqNum, 0, 0b10);
+  fstPacket.TCPHeadWrite(client_ip, server_ip, client_port, server_port, randSeqNum, 0, 0b10);
 
   // Status Change Listen -> SysSent 
   SocketStatusMap[make_pair(sockfd, pid)] = socket_data::SysSentStatus(syscallUUID, pid, server_ip, server_port, client_ip, client_port);
