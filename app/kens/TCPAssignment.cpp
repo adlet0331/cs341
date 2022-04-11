@@ -211,13 +211,14 @@ void TCPAssignment::syscall_listen(UUID syscallUUID, int pid, int sockfd, int ba
 
   SocketStatusMap[make_pair(sockfd, pid)] = socket_data::ListeningStatus{syscallUUID, pid, currBindedSocket->address, currBindedSocket->port, backlog};
 
+  this->returnSystemCall(syscallUUID, 0);
   return;
 }
 
 void TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
   struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
   if (currEstabSocket == nullptr){
-    this->syscall_accept(syscallUUID, pid, sockfd, addr, addrlen);
+    this->returnSystemCall(syscallUUID, -1);
     return;
   }
 
@@ -225,7 +226,6 @@ void TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct
   ((sockaddr_in *)addr)->sin_port = currEstabSocket->destinationport;
   ((sockaddr_in *)addr)->sin_family = AF_INET;
 
-  this->returnSystemCall(syscallUUID, currEstabSocket->destinationFD);
   return;
 }
 
@@ -421,7 +421,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
             //SynRcvd 상태인 socket_data 생성해서 넣어주기
             int newsockfd = createFileDescriptor(processid);
-            SocketStatusMap[make_pair(newsockfd, processid)] = socket_data::SynRcvdStatus{uuid, processid, socketfd, processid, source_ip, source_port, destination_ip, destination_port, randSeqNum, newsockfd};
+            SocketStatusMap[make_pair(newsockfd, processid)] = socket_data::SynRcvdStatus{uuid, processid, socketfd, source_ip, source_port, destination_ip, destination_port, randSeqNum};
           }
         },
         [&](socket_data::SysSentStatus currSysSentsock) {
@@ -447,7 +447,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
             //SynRcvd 상태인 socket_data 생성해서 넣어주기
             // TODO: Server socket fd 받아오기
-            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port, socketfd};
+            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port};
 
             this->sendPacket("IPv4", std::move(newpacket.pkt));
 
@@ -470,7 +470,6 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             UUID uuid = currSynRcvdsock.syscallUUID;
             int processid = currSynRcvdsock.processid;
             int listeningfd = currSynRcvdsock.listeningfd;
-            int estabfd = currSynRcvdsock.myFd;
 
             struct socket_data::ListeningStatus* thisListeningsocket = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find(make_pair(listeningfd, processid))->second);
 
@@ -484,9 +483,9 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             }
 
             //Estab 상태인 socket_data 생성해서 넣어주기
-            SocketStatusMap[make_pair(estabfd, processid)] = socket_data::EstabStatus{uuid, processid, destination_ip, destination_port, source_ip, source_port, estabfd};
+            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, destination_ip, destination_port, source_ip, source_port};
 
-            thisListeningsocket->establishedStatusKeyList.push_back(make_pair(estabfd, processid));
+            thisListeningsocket->establishedStatusKeyList.push_back(make_pair(socketfd, processid));
 
             // Estab 된 애들의 queue를 돌면서 같은 pid를 가진 애의 fd를 반환
             // 일단 client 쪽 소켓 가져오기
@@ -503,12 +502,15 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
                 }
               }
             }
-            if (clientSocket == nullptr) this->returnSystemCall(uuid, -1);
-
+            if (clientSocket == nullptr){
+              this->returnSystemCall(uuid, -1);
+              return;
+            }
             //pid 순회하면서 비교. pop 후 리턴
             int newsockfd = -1;
             for (auto iter : thisListeningsocket->establishedStatusKeyList){
               struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(iter.first, iter.second))->second);
+              if(currEstabSocket == nullptr) continue;
               if (currEstabSocket->processid == clientSocket->processid){
                 newsockfd = currEstabSocket->destinationFD;
                 thisListeningsocket->establishedStatusKeyList.remove(make_pair(currEstabSocket->destinationFD, clientSocket->processid));
@@ -521,6 +523,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
         },
         [](auto sock_data) {
           // 위의 상태와 다른 경우. 에러처리
+          return;
 
         },
       }, currsock);

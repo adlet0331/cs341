@@ -94,8 +94,8 @@ public:
     in_addr_t myaddress;
     uint16_t myport;
     int seqNum;
-    int myFd;
-    SynRcvdStatus(UUID uuid, int pid, int lfd, int lpid, in_addr_t saddr, uint16_t sp, in_addr_t caddr, uint16_t cp, int seq, int mfd): syscallUUID{uuid}, processid{pid}, clientaddress{caddr}, clientport{cp}, myaddress{saddr}, myport{sp}, seqNum{seq}, myFd{mfd} {};
+
+    SynRcvdStatus(UUID uuid, int pid, int lfd, in_addr_t saddr, uint16_t sp, in_addr_t caddr, uint16_t cp, int seq): syscallUUID{uuid}, processid{pid}, listeningfd{lfd}, clientaddress{caddr}, clientport{cp}, myaddress{saddr}, myport{sp}, seqNum{seq} {};
   };
 
   struct EstabStatus{
@@ -106,7 +106,7 @@ public:
     in_addr_t sourceaddress;
     uint16_t sourceport;
     int destinationFD;
-    EstabStatus(UUID uuid, int pid, in_addr_t daddr, uint16_t dp, in_addr_t saddr, uint16_t sp, int fd): syscallUUID{uuid}, processid{pid}, destinationaddress{daddr}, destinationport{dp}, sourceaddress{saddr}, sourceport{sp}, destinationFD{fd} {};
+    EstabStatus(UUID uuid, int pid, in_addr_t daddr, uint16_t dp, in_addr_t saddr, uint16_t sp): syscallUUID{uuid}, processid{pid}, destinationaddress{daddr}, destinationport{dp}, sourceaddress{saddr}, sourceport{sp} {};
   };
 
   using StatusVar = variant<ClosedStatus, BindStatus, ListeningStatus, SysSentStatus, SynRcvdStatus, EstabStatus>;
