@@ -128,8 +128,19 @@ void TCPAssignment::syscall_close(UUID syscallUUID, int pid, int sockfd){
   if (pid >= 0 && sockfd >= 0){
     SocketStatusMap.erase(make_pair(sockfd, pid));
     struct socket_data::ListeningStatus* thisListeningsocketPointer = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find({sockfd, pid})->second);
-    thisListeningsocketPointer->handshakingStatusKeyList.remove({sockfd, pid});
-    thisListeningsocketPointer->establishedStatusKeyList.remove({sockfd, pid});
+
+    for(auto iter = thisListeningsocketPointer->handshakingStatusKeyList.begin(); iter != thisListeningsocketPointer->handshakingStatusKeyList.end(); iter++) {
+      if (iter->first == sockfd && iter->second == pid){
+        thisListeningsocketPointer->handshakingStatusKeyList.remove(make_pair(sockfd, pid));
+        break;
+      }
+    }
+    for(auto iter2 = thisListeningsocketPointer->establishedStatusKeyList.begin(); iter2 != thisListeningsocketPointer->establishedStatusKeyList.end(); iter2++) {
+      if (iter2->first == sockfd && iter2->second == pid){
+        thisListeningsocketPointer->establishedStatusKeyList.remove(make_pair(sockfd, pid));
+        break;
+      }
+    }
 
     this->returnSystemCallCustom(syscallUUID, 0);
   }
