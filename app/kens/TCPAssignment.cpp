@@ -359,26 +359,24 @@ void TCPAssignment::catchAccept(int listeningfd, int processid, UUID uuid){
   struct socket_data::ListeningStatus* thisListeningsocket = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find({listeningfd, processid})->second);
 
   // listening socket의 list들 확인
-  if (!thisListeningsocket->establishedStatusKeyList.empty()){
-    while(!thisListeningsocket->establishedStatusKeyList.empty() && !thisListeningsocket->waitingStatusKeyList.empty()){
-      socket_data::SocketFD estabedsocket = thisListeningsocket->establishedStatusKeyList.front().first;
-      socket_data::ProcessID estabedpid = thisListeningsocket->establishedStatusKeyList.front().second;
-      pair<int, int> waitingKey = thisListeningsocket->waitingStatusKeyList.front().first;
-      struct sockaddr * waitPointer = thisListeningsocket->waitingStatusKeyList.front().second;
+  while(!thisListeningsocket->establishedStatusKeyList.empty() && !thisListeningsocket->waitingStatusKeyList.empty()){
+    socket_data::SocketFD estabedsocket = thisListeningsocket->establishedStatusKeyList.front().first;
+    socket_data::ProcessID estabedpid = thisListeningsocket->establishedStatusKeyList.front().second;
+    pair<int, int> waitingKey = thisListeningsocket->waitingStatusKeyList.front().first;
+    struct sockaddr * waitPointer = thisListeningsocket->waitingStatusKeyList.front().second;
 
-      struct socket_data::EstabStatus* thisEstabsocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find({estabedsocket, estabedpid})->second);
+    struct socket_data::EstabStatus* thisEstabsocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find({estabedsocket, estabedpid})->second);
 
-      if (thisEstabsocket == nullptr) return;
+    if (thisEstabsocket == nullptr) return;
 
-      ((sockaddr_in *)waitPointer)->sin_addr.s_addr = thisEstabsocket->sourceaddress;
-      ((sockaddr_in *)waitPointer)->sin_family = AF_INET;
-      ((sockaddr_in *)waitPointer)->sin_port = htons(thisEstabsocket->sourceport);
+    ((sockaddr_in *)waitPointer)->sin_addr.s_addr = thisEstabsocket->sourceaddress;
+    ((sockaddr_in *)waitPointer)->sin_family = AF_INET;
+    ((sockaddr_in *)waitPointer)->sin_port = htons(thisEstabsocket->sourceport);
 
-      thisListeningsocket->establishedStatusKeyList.pop_front();
-      thisListeningsocket->waitingStatusKeyList.pop_front();
+    thisListeningsocket->establishedStatusKeyList.pop_front();
+    thisListeningsocket->waitingStatusKeyList.pop_front();
 
-      this->returnSystemCallCustom(uuid, waitingKey.first);
-    }
+    this->returnSystemCallCustom(uuid, estabedsocket);
   }
   return;
 }
@@ -481,8 +479,8 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           if (currPacketType != PACKET_TYPE_ACK) return;
           
           // Client가 연결하고자 하는 SysSentsocket가 맞을 때
-          if((currSynRcvdsock.myaddress == INADDR_ANY && currSynRcvdsock.myport == source_port) || 
-          (currSynRcvdsock.myaddress == source_ip && currSynRcvdsock.myport == source_port)){
+          if((currSynRcvdsock.myaddress == INADDR_ANY && currSynRcvdsock.myport == destination_port) || 
+          (currSynRcvdsock.myaddress == destination_ip && currSynRcvdsock.myport == destination_port)){
             // TODO : 받은 ACKnum과 이전 SeqNum과 비교. 다르면 거부
 
             UUID uuid = currSynRcvdsock.syscallUUID;
