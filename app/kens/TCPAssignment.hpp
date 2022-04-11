@@ -69,7 +69,10 @@ public:
     int queueMaxLen;
     list<StatusKey> handshakingStatusKeyList;
     list<StatusKey> establishedStatusKeyList;
-    ListeningStatus(UUID uuid, int pid, in_addr_t addr, uint16_t p, int len): syscallUUID{uuid}, processid{pid}, address{addr}, port{p}, queueMaxLen{len} {};
+    ListeningStatus(UUID uuid, int pid, in_addr_t addr, uint16_t p, int len): syscallUUID{uuid}, processid{pid}, address{addr}, port{p}, queueMaxLen{len} {
+      handshakingStatusKeyList.clear();
+      establishedStatusKeyList.clear();
+    };
   };
 
   struct SysSentStatus{

@@ -209,8 +209,6 @@ void TCPAssignment::syscall_listen(UUID syscallUUID, int pid, int sockfd, int ba
   struct socket_data::BindStatus* currBindedSocket = get_if<socket_data::BindStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
   if (currBindedSocket == nullptr) this->returnSystemCall(syscallUUID, -1);
 
-  std::queue<socket_data::StatusKey> newqueue1;
-  std::queue<socket_data::StatusKey> newqueue2;
   SocketStatusMap[make_pair(sockfd, pid)] = socket_data::ListeningStatus{syscallUUID, pid, currBindedSocket->address, currBindedSocket->port, backlog};
 
   return;
@@ -398,7 +396,6 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           if((currListeningsock.address == INADDR_ANY && currListeningsock.port == destination_port) || 
           (currListeningsock.address == destination_ip && currListeningsock.port == destination_port)){
             // 사이즈가 같으면 패킷 드롭
-            int asdf = currListeningsock.handshakingStatusKeyList.size();
             if (currListeningsock.queueMaxLen <= currListeningsock.handshakingStatusKeyList.size()) return;
             // 지금 handshaking 중인 Queue에 넣어주기
             currListeningsock.handshakingStatusKeyList.push_back(make_pair(socketfd, processid));
@@ -415,10 +412,10 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             uniform_int_distribution<int> dis(0, 100000000);
             int randSeqNum = dis(gen);
 
-            uint32_t beforeSeqNum = receivedpacket.SeqNum();
+            uint32_t ACKNum = receivedpacket.SeqNum() + 1;
             
-            newpacket.IPAddrWrite(source_ip, destination_ip);
-            newpacket.TCPHeadWrite(source_ip ,destination_ip ,source_port, destination_port, randSeqNum, beforeSeqNum+1, 0b010010);
+            newpacket.IPAddrWrite(destination_ip, source_ip);
+            newpacket.TCPHeadWrite(source_ip, destination_ip, destination_port, source_port, randSeqNum, ACKNum, 0b010010);
 
             sendPacket("IPv4", std::move(newpacket.pkt));
 
@@ -477,10 +474,12 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
             struct socket_data::ListeningStatus* thisListeningsocket = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find(make_pair(listeningfd, processid))->second);
 
-            for (socket_data::StatusKey iter : thisListeningsocket->handshakingStatusKeyList){
-              if(iter.first == listeningfd && iter.second == processid){
-                thisListeningsocket->handshakingStatusKeyList.remove(make_pair(listeningfd, processid));
-                break;
+            if (!thisListeningsocket->handshakingStatusKeyList.empty()){
+              for (auto iter = thisListeningsocket->handshakingStatusKeyList.begin(); iter != thisListeningsocket->handshakingStatusKeyList.end(); iter++){
+                if(iter->first == listeningfd && iter->second == processid){
+                  thisListeningsocket->handshakingStatusKeyList.remove(make_pair(listeningfd, processid));
+                  break;
+                }
               }
             }
 
@@ -508,7 +507,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
             //pid 순회하면서 비교. pop 후 리턴
             int newsockfd = -1;
-            for (socket_data::StatusKey iter : thisListeningsocket->establishedStatusKeyList){
+            for (auto iter : thisListeningsocket->establishedStatusKeyList){
               struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(iter.first, iter.second))->second);
               if (currEstabSocket->processid == clientSocket->processid){
                 newsockfd = currEstabSocket->destinationFD;
