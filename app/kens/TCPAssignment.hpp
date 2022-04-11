@@ -58,7 +58,6 @@ public:
     in_addr_t address;
     uint16_t port;
     BindStatus(UUID uuid, int pid, in_addr_t addr, uint16_t p): syscallUUID{uuid}, processid{pid},address{addr}, port{p} {};
-    //BindStatus() : BindStatus(-1, -1, 0, 0) {}
   };
 
   struct ListeningStatus{
@@ -69,9 +68,11 @@ public:
     int queueMaxLen;
     list<StatusKey> handshakingStatusKeyList;
     list<StatusKey> establishedStatusKeyList;
+    list<StatusKey> waitingStatusKeyList;
     ListeningStatus(UUID uuid, int pid, in_addr_t addr, uint16_t p, int len): syscallUUID{uuid}, processid{pid}, address{addr}, port{p}, queueMaxLen{len} {
       handshakingStatusKeyList.clear();
       establishedStatusKeyList.clear();
+      waitingStatusKeyList.clear();
     };
   };
 
@@ -105,7 +106,6 @@ public:
     uint16_t destinationport;
     in_addr_t sourceaddress;
     uint16_t sourceport;
-    int destinationFD;
     EstabStatus(UUID uuid, int pid, in_addr_t daddr, uint16_t dp, in_addr_t saddr, uint16_t sp): syscallUUID{uuid}, processid{pid}, destinationaddress{daddr}, destinationport{dp}, sourceaddress{saddr}, sourceport{sp} {};
   };
 
