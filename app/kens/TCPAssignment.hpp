@@ -138,7 +138,7 @@ protected:
   virtual void systemCallback(UUID syscallUUID, int pid,
                               const SystemCallParameter &param) final;
   virtual void packetArrived(std::string fromModule, Packet &&packet) final;
-  virtual void catchAccept(int listeningfd, int processid);
+  virtual void catchAccept(int listeningfd, int processid, UUID uuid);
 
 private:
   void syscall_socket(UUID syscallUUID, int pid, int domain, int type, int protocol);
