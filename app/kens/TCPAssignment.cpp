@@ -392,6 +392,8 @@ void TCPAssignment::catchAccept(int listeningfd, int socketfd, int processid){
 
       struct socket_data::EstabStatus* thisEstabsocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(waitingKey.first, waitingKey.second))->second);
 
+      if (thisEstabsocket == nullptr) return;
+
       ((sockaddr_in *)waitPointer)->sin_addr.s_addr = thisEstabsocket->sourceaddress;
       ((sockaddr_in *)waitPointer)->sin_port = htons(thisEstabsocket->sourceport);
       ((sockaddr_in *)waitPointer)->sin_family = AF_INET;
@@ -399,7 +401,7 @@ void TCPAssignment::catchAccept(int listeningfd, int socketfd, int processid){
       thisListeningsocket->establishedStatusKeyList.pop_front();
       thisListeningsocket->waitingStatusKeyList.pop_front();
 
-      this->returnSystemCall(5, estabedsocket);
+      this->returnSystemCallCustom(5, estabedsocket);
     }
   }
   return;
