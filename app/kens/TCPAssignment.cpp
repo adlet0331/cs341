@@ -23,8 +23,6 @@ namespace E {
 // New Data Structure
 
 // key : file descripter
-map<socket_data::StatusKey, socket_data::StatusVar> SocketStatusMap;
-list<UUID> SyscallStacks;
 
 TCPAssignment::TCPAssignment(Host &host)
     : HostModule("TCP", host), RoutingInfoInterface(host),
@@ -33,20 +31,12 @@ TCPAssignment::TCPAssignment(Host &host)
 
 TCPAssignment::~TCPAssignment() {}
 
-void TCPAssignment::initialize() {
-  
-}
+void TCPAssignment::initialize() {}
 
 void TCPAssignment::finalize() {}
 
 void TCPAssignment::systemCallback(UUID syscallUUID, int pid,
                                    const SystemCallParameter &param) {
-
-  // Remove below
-  //(void)syscallUUID;
-  //(void)pid;
-  int returnInt;
-
   SyscallStacks.push_back(syscallUUID);
 
   switch (param.syscallNumber) {
@@ -235,6 +225,7 @@ void TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct
           currListeningsock->waitingStatusKeyList.push_back(make_pair(make_pair(sockfd,pid), addr));
 
           this->catchAccept(listenFd, sockfd, pid);
+          return;
         }
       }
   }
@@ -390,7 +381,7 @@ void TCPAssignment::catchAccept(int listeningfd, int socketfd, int processid){
       pair<int, int> waitingKey = thisListeningsocket->waitingStatusKeyList.front().first;
       struct sockaddr * waitPointer = thisListeningsocket->waitingStatusKeyList.front().second;
 
-      struct socket_data::EstabStatus* thisEstabsocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(waitingKey.first, waitingKey.second))->second);
+      struct socket_data::EstabStatus* thisEstabsocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(waitingKey)->second);
 
       if (thisEstabsocket == nullptr) return;
 
@@ -480,6 +471,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             
             // 패킷 보내기
             // ACKbit = 1, ACKnum = 이전 Seqnum + 1
+
             MyPacket newpacket{size_t(54)};
 
             uint32_t newACKNum = receivedpacket.SeqNum() + 1;
@@ -487,7 +479,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             newpacket.IPAddrWrite(destination_ip, source_ip);
             newpacket.TCPHeadWrite(destination_ip, source_ip, destination_port, source_port, 0, newACKNum, 0b010000);
 
-            //SynRcvd 상태인 socket_data 생성해서 넣어주기
+            //EstabStatus 상태인 socket_data 생성해서 넣어주기
             SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port};
 
             this->sendPacket("IPv4", std::move(newpacket.pkt));
