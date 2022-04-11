@@ -45,6 +45,7 @@ public:
   using SocketFD = int;
   using ProcessID = int;
   using StatusKey = pair<SocketFD, ProcessID>;
+  using WaitingKey = pair<pair<int, int>,struct sockaddr *>;
   struct ClosedStatus{
     UUID syscallUUID;
     int processid;
@@ -68,7 +69,7 @@ public:
     int queueMaxLen;
     list<StatusKey> handshakingStatusKeyList;
     list<StatusKey> establishedStatusKeyList;
-    list<StatusKey> waitingStatusKeyList;
+    list<WaitingKey> waitingStatusKeyList;
     ListeningStatus(UUID uuid, int pid, in_addr_t addr, uint16_t p, int len): syscallUUID{uuid}, processid{pid}, address{addr}, port{p}, queueMaxLen{len} {
       handshakingStatusKeyList.clear();
       establishedStatusKeyList.clear();
@@ -135,6 +136,7 @@ protected:
   virtual void systemCallback(UUID syscallUUID, int pid,
                               const SystemCallParameter &param) final;
   virtual void packetArrived(std::string fromModule, Packet &&packet) final;
+  virtual void catchAccept(int listeningfd, int socketfd, int processid);
 
 private:
   void syscall_socket(UUID syscallUUID, int pid, int domain, int type, int protocol);

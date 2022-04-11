@@ -24,7 +24,6 @@ namespace E {
 
 // key : file descripter
 map<socket_data::StatusKey, socket_data::StatusVar> SocketStatusMap;
-
 list<UUID> SyscallStacks;
 
 TCPAssignment::TCPAssignment(Host &host)
@@ -224,7 +223,8 @@ void TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct
   uint16_t listening_port = ntohs(((sockaddr_in *)addr)->sin_port);
 
   for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
-      socket_data::StatusKey statuskey = iter->first;
+      int listenFd = iter->first.first;
+      int listenPid = iter->first.second;
       socket_data::StatusVar& currsock = iter->second;
       struct socket_data::ListeningStatus* currListeningsock = get_if<socket_data::ListeningStatus>(&currsock);
       if (currListeningsock != nullptr){
@@ -237,10 +237,6 @@ void TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct
             this->returnSystemCallCustom(syscallUUID, establishedKey.first);
             return;
           }
-          else{
-            currListeningsock->waitingStatusKeyList.push_back(make_pair(sockfd, pid));
-          }
-          return;
         }
       }
   }
@@ -384,10 +380,40 @@ void TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, s
   return;
 }
 
-void TCPAssignment::returnSystemCallCustom(UUID syscallUUID, int val)
-{
-  SyscallStacks.remove(syscallUUID);
-  this->returnSystemCall(syscallUUID,val);
+void TCPAssignment::catchAccept(int listeningfd, int socketfd, int processid){
+// 이 소켓의 Listening Socket FD 가져오기. 없을리 없다
+  struct socket_data::ListeningStatus* thisListeningsocket = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find(make_pair(listeningfd, processid))->second);
+  if (thisListeningsocket != nullptr && !thisListeningsocket->handshakingStatusKeyList.empty()){
+    for (auto iter = thisListeningsocket->handshakingStatusKeyList.begin(); iter != thisListeningsocket->handshakingStatusKeyList.end(); iter++){
+      if(iter->first == listeningfd && iter->second == processid){
+        // listening 의 backlog에서 제외
+        thisListeningsocket->handshakingStatusKeyList.remove(make_pair(listeningfd, processid));
+        break;
+      }
+    }
+  }
+
+  int newsockfd = -1;
+  if (!thisListeningsocket->establishedStatusKeyList.empty()){
+    while(!thisListeningsocket->establishedStatusKeyList.empty() && !thisListeningsocket->waitingStatusKeyList.empty()){
+      socket_data::SocketFD estabedsocket = thisListeningsocket->establishedStatusKeyList.front().first;
+      socket_data::ProcessID estabedpid = thisListeningsocket->establishedStatusKeyList.front().second;
+      pair<int, int> waitingKey = thisListeningsocket->waitingStatusKeyList.front().first;
+      struct sockaddr * waitPointer = thisListeningsocket->waitingStatusKeyList.front().second;
+
+      struct socket_data::SysSentStatus* thisSysSentsocket = get_if<socket_data::SysSentStatus>(&SocketStatusMap.find(make_pair(estabedsocket, estabedpid))->second);
+
+      ((sockaddr_in *)waitPointer)->sin_addr.s_addr = thisSysSentsocket->myaddress;
+      ((sockaddr_in *)waitPointer)->sin_port = htons(thisSysSentsocket->myport);
+      ((sockaddr_in *)waitPointer)->sin_family = AF_INET;
+
+      thisListeningsocket->establishedStatusKeyList.pop_front();
+      thisListeningsocket->waitingStatusKeyList.pop_front();
+
+      this->returnSystemCall(5, estabedsocket);
+    }
+  }
+  return;
 }
 
 void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
@@ -532,10 +558,11 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             //pid 순회하면서 비교. pop 후 리턴
             int newsockfd = -1;
             if (!thisListeningsocket->waitingStatusKeyList.empty() && !thisListeningsocket->establishedStatusKeyList.empty()){
-              socket_data::SocketFD estabedsocket = thisListeningsocket->establishedStatusKeyList.front().first;
-              socket_data::ProcessID waitingsocket = thisListeningsocket->waitingStatusKeyList.front().first;
-              socket_data::SocketFD estabedpid = thisListeningsocket->establishedStatusKeyList.front().second;
-              socket_data::ProcessID waitingpid = thisListeningsocket->waitingStatusKeyList.front().second;
+              int estabedsocket = thisListeningsocket->establishedStatusKeyList.front().first;
+              int estabedpid = thisListeningsocket->establishedStatusKeyList.front().second;
+
+              int waitingsocket = thisListeningsocket->waitingStatusKeyList.front().first.first;
+              int waitingpid = thisListeningsocket->waitingStatusKeyList.front().first.first;
 
               thisListeningsocket->establishedStatusKeyList.pop_front();
               thisListeningsocket->waitingStatusKeyList.pop_front();
