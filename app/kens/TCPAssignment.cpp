@@ -418,7 +418,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             uint32_t beforeSeqNum = receivedpacket.SeqNum();
             
             newpacket.IPAddrWrite(source_ip, destination_ip);
-            newpacket.TCPHeadWrite(source_ip ,destination_ip ,source_port,source_port,randSeqNum,beforeSeqNum+1,0b010010);
+            newpacket.TCPHeadWrite(source_ip ,destination_ip ,source_port, destination_port, randSeqNum, beforeSeqNum+1, 0b010010);
 
             sendPacket("IPv4", std::move(newpacket.pkt));
 
