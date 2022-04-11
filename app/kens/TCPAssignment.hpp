@@ -145,6 +145,7 @@ private:
   void syscall_bind(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen);
   void syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
   void syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
+  void returnSystemCallCustom(UUID syscallUUID, int val);
 };
 
 class TCPAssignmentProvider {
