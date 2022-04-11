@@ -31,7 +31,12 @@ TCPAssignment::TCPAssignment(Host &host)
 
 TCPAssignment::~TCPAssignment() {}
 
-void TCPAssignment::initialize() {}
+void TCPAssignment::initialize() {
+  for(auto iter = SyscallStacks.begin(); iter!= SyscallStacks.end();iter++)
+  {
+    this->returnSystemCall(*iter, 0);
+  }
+}
 
 void TCPAssignment::finalize() {}
 
@@ -519,7 +524,14 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 void TCPAssignment::timerCallback(any payload) {}
 
 void TCPAssignment::returnSystemCallCustom(UUID systemCall, int val) {
-  SyscallStacks.remove(systemCall);
+  
+  for(auto iter = SyscallStacks.begin(); iter!= SyscallStacks.end();iter++)
+  {
+    if(systemCall == *iter){
+      SyscallStacks.erase(iter);
+      break;
+    }
+  }
   this->returnSystemCall(systemCall, val);
 }
 
