@@ -400,7 +400,6 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
     socket_data::SocketFD socketfd = get<0>(iter->first);
     socket_data::ProcessID processid = get<1>(iter->first);
-    socket_data::StatusVar currsock = iter->second;
 
     visit(
       overloaded{
@@ -408,16 +407,25 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           // Client -> Server. 1번째.  Server 입장
           if (currPacketType != PACKET_TYPE_SYN) return;
 
-          // Client가 연결하고자 하는 ListeningSocket 맞을 때
-          if((currListeningsock.address == INADDR_ANY && currListeningsock.port == destination_port) || 
-          (currListeningsock.address == destination_ip && currListeningsock.port == destination_port)){
-            // 사이즈가 같으면 패킷 드롭
-            if (currListeningsock.queueMaxLen <= currListeningsock.handshakingStatusKeyList.size()) return;
-            // 지금 handshaking 중인 Queue에 넣어주기
-            currListeningsock.handshakingStatusKeyList.push_back(make_pair(socketfd, processid));
+          // 순회하면서 SocketStatusMap Pointer 가져오기
+          socket_data::ListeningStatus* currListeningsockPointer;
+          for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
+            currListeningsockPointer = get_if<socket_data::ListeningStatus>(&iter->second);
+            if(currListeningsockPointer->address == currListeningsock.address && currListeningsockPointer->port == currListeningsock.port){
+              break;
+            }
+          }
 
-            UUID uuid = currListeningsock.syscallUUID;
-            int processid = currListeningsock.processid;
+          // Client가 연결하고자 하는 ListeningSocket 맞을 때
+          if((currListeningsockPointer->address == INADDR_ANY && currListeningsockPointer->port == destination_port) || 
+          (currListeningsockPointer->address == destination_ip && currListeningsockPointer->port == destination_port)){
+            // 사이즈가 같으면 패킷 드롭
+            if (currListeningsockPointer->queueMaxLen <= currListeningsockPointer->handshakingStatusKeyList.size()) return;
+            // 지금 handshaking 중인 Queue에 넣어주기
+            currListeningsockPointer->handshakingStatusKeyList.push_back(make_pair(socketfd, processid));
+
+            UUID uuid = currListeningsockPointer->syscallUUID;
+            int processid = currListeningsockPointer->processid;
 
             // 패킷 보내기
             // SYNbit = 1, Seq = 랜덤, ACKbit = 1, ACKnum = 이전Seq + 1
@@ -488,20 +496,12 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             int listeningfd = currSynRcvdsock.listeningfd;
 
             // 이 소켓이 첫번째 소켓을 받은 직후 생긴 Listening Socket FD 가져오기 
-            struct socket_data::ListeningStatus* thisListeningsocket = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find(make_pair(listeningfd, processid))->second);
-            if (thisListeningsocket != nullptr && !thisListeningsocket->handshakingStatusKeyList.empty()){
-              for (auto iter = thisListeningsocket->handshakingStatusKeyList.begin(); iter != thisListeningsocket->handshakingStatusKeyList.end(); iter++){
-                if(iter->first == listeningfd && iter->second == processid){
-                  // listening 의 backlog에서 제외
-                  thisListeningsocket->handshakingStatusKeyList.remove(make_pair(socketfd, processid));
-                  break;
-                }
-              }
-            }
+            struct socket_data::ListeningStatus* thisListeningsocketPointer = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find({listeningfd, processid})->second);
+            thisListeningsocketPointer->handshakingStatusKeyList.remove({listeningfd, processid});
 
             //Estab 상태인 socket_data 생성해서 넣어주기
             SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port};
-            thisListeningsocket->establishedStatusKeyList.push_back(make_pair(socketfd, processid));
+            thisListeningsocketPointer->establishedStatusKeyList.push_back(make_pair(socketfd, processid));
             
             this->catchAccept(listeningfd, processid, uuid);
           }
@@ -511,7 +511,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           return;
 
         },
-      }, currsock);
+      }, iter->second);
       if (isfinded) return;
   }
 }
