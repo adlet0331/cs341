@@ -590,9 +590,11 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   }
 }
 
-void TCPAssignment::timerCallback(any payload) {
-  addTimer(payload,30);
+void TCPAssignment::timerCallback(any payload) {}
 
+void TCPAssignment::returnSystemCallCustom(UUID systemCall, int val) {
+  SyscallStacks.remove(systemCall);
+  this->returnSystemCall(systemCall, val);
 }
 
 void MyPacket::IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr) {
