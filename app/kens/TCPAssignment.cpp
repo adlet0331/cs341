@@ -500,7 +500,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             }
 
             //Estab 상태인 socket_data 생성해서 넣어주기
-            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, destination_ip, destination_port, source_ip, source_port};
+            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port};
             thisListeningsocket->establishedStatusKeyList.push_back(make_pair(socketfd, processid));
             
             this->catchAccept(listeningfd, processid, uuid);
