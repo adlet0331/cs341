@@ -175,7 +175,7 @@ void TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struc
   struct socket_data::BindStatus* currBindStatus = get_if<socket_data::BindStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
   if (currBindStatus != nullptr){
     isAlreadyBinded = true;
-    client_port = currBindStatus->port;
+    client_port = currBindStatus->sourceport;
   }
   
   while(!isAlreadyBinded)
@@ -189,12 +189,12 @@ void TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struc
       if (currbindedsock == nullptr) continue;
       if(currbindedsock->processid != pid) continue;
 
-      if(currbindedsock->address == INADDR_ANY && currbindedsock->port == client_port){
+      if(currbindedsock->sourceip == INADDR_ANY && currbindedsock->sourceport == client_port){
         isAlreadyBinded = false;
         break;
       }
 
-      if(currbindedsock->address == client_ip && currbindedsock->port == client_port){
+      if(currbindedsock->sourceip == client_ip && currbindedsock->sourceport == client_port){
         isAlreadyBinded = false;
         break;
       }
@@ -224,7 +224,7 @@ void TCPAssignment::syscall_listen(UUID syscallUUID, int pid, int sockfd, int ba
   struct socket_data::BindStatus* currBindedSocket = get_if<socket_data::BindStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
   if (currBindedSocket == nullptr) this->returnSystemCallCustom(syscallUUID, -1);
 
-  SocketStatusMap[make_pair(sockfd, pid)] = socket_data::ListeningStatus{syscallUUID, pid, currBindedSocket->address, currBindedSocket->port, backlog};
+  SocketStatusMap[make_pair(sockfd, pid)] = socket_data::ListeningStatus{syscallUUID, pid, currBindedSocket->sourceip, currBindedSocket->sourceport, backlog};
 
   this->returnSystemCallCustom(syscallUUID, 0);
   return;
@@ -232,8 +232,8 @@ void TCPAssignment::syscall_listen(UUID syscallUUID, int pid, int sockfd, int ba
 
 void TCPAssignment::syscall_accept(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
   struct socket_data::ListeningStatus* currListeningStatus = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
-  in_addr_t listening_ip = currListeningStatus->address;
-  uint16_t listening_port = currListeningStatus->port;
+  in_addr_t listening_ip = currListeningStatus->sourceip;
+  uint16_t listening_port = currListeningStatus->sourceport;
 
   currListeningStatus->waitingStatusKeyList.push_back(make_pair(syscallUUID, addr));
 
@@ -269,11 +269,11 @@ void TCPAssignment::syscall_bind(UUID syscallUUID, int pid, int sockfd, struct s
       if (currbindedsock != nullptr){
         if(currbindedsock->processid != pid) continue;
 
-        if(currbindedsock->address == INADDR_ANY && currbindedsock->port == port){
+        if(currbindedsock->sourceip == INADDR_ANY && currbindedsock->sourceport == port){
           this->returnSystemCallCustom(syscallUUID, -1);
           return;
         }
-        if(currbindedsock->address == s_addr && currbindedsock->port == port){
+        if(currbindedsock->sourceip == s_addr && currbindedsock->sourceport == port){
           this->returnSystemCallCustom(syscallUUID, -1);
           return;
         }
@@ -295,8 +295,8 @@ void TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, s
   // TODO : addrlen 에 맞춰 짜르기 구현
   struct socket_data::BindStatus* currBindSocket = get_if<socket_data::BindStatus>(&SocketStatusMap.find({sockfd, pid})->second);
   if (currBindSocket != nullptr){
-    ((sockaddr_in *)addr)->sin_addr.s_addr = currBindSocket->address;
-    ((sockaddr_in *)addr)->sin_port = htons(currBindSocket->port);
+    ((sockaddr_in *)addr)->sin_addr.s_addr = currBindSocket->sourceip;
+    ((sockaddr_in *)addr)->sin_port = htons(currBindSocket->sourceport);
     ((sockaddr_in *)addr)->sin_family = AF_INET;
 
     this->returnSystemCallCustom(syscallUUID, 0);
@@ -305,8 +305,8 @@ void TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, s
 
   struct socket_data::ListeningStatus* currListeningSocket = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find({sockfd, pid})->second);
   if (currListeningSocket != nullptr){
-    ((sockaddr_in *)addr)->sin_addr.s_addr = currListeningSocket->address;
-    ((sockaddr_in *)addr)->sin_port = htons(currListeningSocket->port);
+    ((sockaddr_in *)addr)->sin_addr.s_addr = currListeningSocket->sourceip;
+    ((sockaddr_in *)addr)->sin_port = htons(currListeningSocket->sourceport);
     ((sockaddr_in *)addr)->sin_family = AF_INET;
 
     this->returnSystemCallCustom(syscallUUID, 0);
@@ -432,14 +432,14 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           socket_data::ListeningStatus* currListeningsockPointer;
           for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
             currListeningsockPointer = get_if<socket_data::ListeningStatus>(&iter->second);
-            if(currListeningsockPointer->address == currListeningsock.address && currListeningsockPointer->port == currListeningsock.port){
+            if(currListeningsockPointer->sourceip == currListeningsock.sourceip && currListeningsockPointer->sourceport == currListeningsock.sourceport){
               break;
             }
           }
 
           // Client가 연결하고자 하는 ListeningSocket 맞을 때
-          if((currListeningsockPointer->address == INADDR_ANY && currListeningsockPointer->port == destination_port) || 
-          (currListeningsockPointer->address == destination_ip && currListeningsockPointer->port == destination_port)){
+          if((currListeningsockPointer->sourceip == INADDR_ANY && currListeningsockPointer->sourceport == destination_port) || 
+          (currListeningsockPointer->sourceip == destination_ip && currListeningsockPointer->sourceport == destination_port)){
             // 사이즈가 같으면 패킷 드롭
             if (currListeningsockPointer->queueMaxLen <= currListeningsockPointer->handshakingStatusKeyList.size()) return;
             // 지금 handshaking 중인 Queue에 넣어주기

@@ -46,6 +46,7 @@ public:
   using ProcessID = int;
   using StatusKey = pair<SocketFD, ProcessID>;
   using WaitingKey = pair<UUID,struct sockaddr *>;
+
   struct ClosedStatus{
     UUID syscallUUID;
     int processid;
@@ -56,21 +57,21 @@ public:
   struct BindStatus{
     UUID syscallUUID; 
     int processid;
-    in_addr_t address;
-    uint16_t port;
-    BindStatus(UUID uuid, int pid, in_addr_t addr, uint16_t p): syscallUUID{uuid}, processid{pid},address{addr}, port{p} {};
+    in_addr_t sourceip;
+    uint16_t sourceport;
+    BindStatus(UUID uuid, int pid, in_addr_t addr, uint16_t p): syscallUUID{uuid}, processid{pid},sourceip{addr}, sourceport{p} {};
   };
 
   struct ListeningStatus{
     UUID syscallUUID;
     int processid;
-    in_addr_t address;
-    uint16_t port;
+    in_addr_t sourceip;
+    uint16_t sourceport;
     int queueMaxLen;
     list<StatusKey> handshakingStatusKeyList;
     list<StatusKey> establishedStatusKeyList;
     list<WaitingKey> waitingStatusKeyList;
-    ListeningStatus(UUID uuid, int pid, in_addr_t addr, uint16_t p, int len): syscallUUID{uuid}, processid{pid}, address{addr}, port{p}, queueMaxLen{len} {
+    ListeningStatus(UUID uuid, int pid, in_addr_t addr, uint16_t p, int len): syscallUUID{uuid}, processid{pid}, sourceip{addr}, sourceport{p}, queueMaxLen{len} {
       handshakingStatusKeyList.clear();
       establishedStatusKeyList.clear();
       waitingStatusKeyList.clear();
