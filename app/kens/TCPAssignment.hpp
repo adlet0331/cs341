@@ -81,34 +81,34 @@ public:
   struct SysSentStatus{
     UUID syscallUUID;
     int processid;
-    in_addr_t serveraddress;
+    in_addr_t serverip;
     uint16_t serverport;
-    in_addr_t myaddress;
+    in_addr_t myip;
     uint16_t myport;
-    SysSentStatus(UUID uuid, int pid, in_addr_t saddr, uint16_t sp, in_addr_t caddr, uint16_t cp): syscallUUID{uuid}, processid{pid}, serveraddress{saddr}, serverport{sp}, myaddress{caddr}, myport{cp} {};
+    SysSentStatus(UUID uuid, int pid, in_addr_t saddr, uint16_t sp, in_addr_t caddr, uint16_t cp): syscallUUID{uuid}, processid{pid}, serverip{saddr}, serverport{sp}, myip{caddr}, myport{cp} {};
   };
 
   struct SynRcvdStatus{
     UUID syscallUUID;
     int processid;
     SocketFD listeningfd;
-    in_addr_t clientaddress;
+    in_addr_t clientip;
     uint16_t clientport;
-    in_addr_t myaddress;
+    in_addr_t myip;
     uint16_t myport;
     int seqNum;
 
-    SynRcvdStatus(UUID uuid, int pid, int lfd, in_addr_t saddr, uint16_t sp, in_addr_t caddr, uint16_t cp, int seq): syscallUUID{uuid}, processid{pid}, listeningfd{lfd}, clientaddress{caddr}, clientport{cp}, myaddress{saddr}, myport{sp}, seqNum{seq} {};
+    SynRcvdStatus(UUID uuid, int pid, int lfd, in_addr_t saddr, uint16_t sp, in_addr_t caddr, uint16_t cp, int seq): syscallUUID{uuid}, processid{pid}, listeningfd{lfd}, clientip{caddr}, clientport{cp}, myip{saddr}, myport{sp}, seqNum{seq} {};
   };
 
   struct EstabStatus{
     UUID syscallUUID;
     int processid;
-    in_addr_t destinationaddress;
+    in_addr_t destinationip;
     uint16_t destinationport;
-    in_addr_t sourceaddress;
+    in_addr_t sourceip;
     uint16_t sourceport;
-    EstabStatus(UUID uuid, int pid, in_addr_t daddr, uint16_t dp, in_addr_t saddr, uint16_t sp): syscallUUID{uuid}, processid{pid}, destinationaddress{daddr}, destinationport{dp}, sourceaddress{saddr}, sourceport{sp} {};
+    EstabStatus(UUID uuid, int pid, in_addr_t daddr, uint16_t dp, in_addr_t saddr, uint16_t sp): syscallUUID{uuid}, processid{pid}, destinationip{daddr}, destinationport{dp}, sourceip{saddr}, sourceport{sp} {};
   };
 
   using StatusVar = variant<ClosedStatus, BindStatus, ListeningStatus, SysSentStatus, SynRcvdStatus, EstabStatus>;

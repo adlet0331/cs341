@@ -314,7 +314,7 @@ void TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, s
   }
   struct socket_data::SynRcvdStatus* currSynRcvdSocket = get_if<socket_data::SynRcvdStatus>(&SocketStatusMap.find({sockfd, pid})->second);
   if (currSynRcvdSocket != nullptr){
-    ((sockaddr_in *)addr)->sin_addr.s_addr = currSynRcvdSocket->myaddress;
+    ((sockaddr_in *)addr)->sin_addr.s_addr = currSynRcvdSocket->myip;
     ((sockaddr_in *)addr)->sin_port = htons(currSynRcvdSocket->myport);
     ((sockaddr_in *)addr)->sin_family = AF_INET;
     this->returnSystemCallCustom(syscallUUID, 0);
@@ -323,7 +323,7 @@ void TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, s
   
   struct socket_data::SysSentStatus* currSysSentSocket = get_if<socket_data::SysSentStatus>(&SocketStatusMap.find({sockfd, pid})->second);
   if (currSysSentSocket != nullptr){
-    ((sockaddr_in *)addr)->sin_addr.s_addr = currSysSentSocket->myaddress;
+    ((sockaddr_in *)addr)->sin_addr.s_addr = currSysSentSocket->myip;
     ((sockaddr_in *)addr)->sin_port = htons(currSysSentSocket->myport);
     ((sockaddr_in *)addr)->sin_family = AF_INET;
     this->returnSystemCallCustom(syscallUUID, 0);
@@ -332,7 +332,7 @@ void TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, s
 
   struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find({sockfd, pid})->second);
   if (currEstabSocket != nullptr){
-    ((sockaddr_in *)addr)->sin_addr.s_addr = currEstabSocket->sourceaddress;
+    ((sockaddr_in *)addr)->sin_addr.s_addr = currEstabSocket->sourceip;
     ((sockaddr_in *)addr)->sin_port = htons(currEstabSocket->sourceport);
     ((sockaddr_in *)addr)->sin_family = AF_INET;
 
@@ -346,7 +346,7 @@ void TCPAssignment::syscall_getsockname(UUID syscallUUID, int pid, int sockfd, s
 void TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen){
   struct socket_data::SynRcvdStatus* currSynRcvdSocket = get_if<socket_data::SynRcvdStatus>(&SocketStatusMap.find({sockfd, pid})->second);
   if (currSynRcvdSocket != nullptr){
-    ((sockaddr_in *)addr)->sin_addr.s_addr = currSynRcvdSocket->clientaddress;
+    ((sockaddr_in *)addr)->sin_addr.s_addr = currSynRcvdSocket->clientip;
     ((sockaddr_in *)addr)->sin_port = htons(currSynRcvdSocket->clientport);
     ((sockaddr_in *)addr)->sin_family = AF_INET;
     this->returnSystemCallCustom(syscallUUID, 0);
@@ -355,7 +355,7 @@ void TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, s
   
   struct socket_data::SysSentStatus* currSysSentSocket = get_if<socket_data::SysSentStatus>(&SocketStatusMap.find({sockfd, pid})->second);
   if (currSysSentSocket != nullptr){
-    ((sockaddr_in *)addr)->sin_addr.s_addr = currSysSentSocket->serveraddress;
+    ((sockaddr_in *)addr)->sin_addr.s_addr = currSysSentSocket->serverip;
     ((sockaddr_in *)addr)->sin_port = htons(currSysSentSocket->serverport);
     ((sockaddr_in *)addr)->sin_family = AF_INET;
     this->returnSystemCallCustom(syscallUUID, 0);
@@ -364,7 +364,7 @@ void TCPAssignment::syscall_getpeername(UUID syscallUUID, int pid, int sockfd, s
   
   struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find({sockfd, pid})->second);
   if (currEstabSocket != nullptr){
-    ((sockaddr_in *)addr)->sin_addr.s_addr = currEstabSocket->destinationaddress;
+    ((sockaddr_in *)addr)->sin_addr.s_addr = currEstabSocket->destinationip;
     ((sockaddr_in *)addr)->sin_port = htons(currEstabSocket->destinationport);
     ((sockaddr_in *)addr)->sin_family = AF_INET;
     this->returnSystemCallCustom(syscallUUID, 0);
@@ -390,7 +390,7 @@ void TCPAssignment::catchAccept(int listeningfd, int processid){
 
     if (thisEstabsocket == nullptr) return;
 
-    ((sockaddr_in *)waitPointer)->sin_addr.s_addr = thisEstabsocket->sourceaddress;
+    ((sockaddr_in *)waitPointer)->sin_addr.s_addr = thisEstabsocket->sourceip;
     ((sockaddr_in *)waitPointer)->sin_family = AF_INET;
     ((sockaddr_in *)waitPointer)->sin_port = htons(thisEstabsocket->sourceport);
 
@@ -475,7 +475,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           if (currPacketType != PACKET_TYPE_SYNACK) return;
           
           // Server가 연결하고자 하는 SysSentsocket 맞을 때
-          if((currSysSentsock.myaddress == INADDR_ANY && currSysSentsock.myport == destination_port) || (currSysSentsock.myaddress == destination_ip && currSysSentsock.myport == destination_port)){
+          if((currSysSentsock.myip == INADDR_ANY && currSysSentsock.myport == destination_port) || (currSysSentsock.myip == destination_ip && currSysSentsock.myport == destination_port)){
             // TODO : 받은 ACKnum과 이전 SeqNum과 비교. 다르면 거부
 
             UUID uuid = currSysSentsock.syscallUUID;
@@ -508,8 +508,8 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           if (currPacketType != PACKET_TYPE_ACK) return;
           
           // Client가 연결하고자 하는 SysSentsocket가 맞을 때
-          if((currSynRcvdsock.myaddress == INADDR_ANY && currSynRcvdsock.myport == destination_port) || 
-          (currSynRcvdsock.myaddress == destination_ip && currSynRcvdsock.myport == destination_port)){
+          if((currSynRcvdsock.myip == INADDR_ANY && currSynRcvdsock.myport == destination_port) || 
+          (currSynRcvdsock.myip == destination_ip && currSynRcvdsock.myport == destination_port)){
             // TODO : 받은 ACKnum과 이전 SeqNum과 비교. 다르면 거부
 
             UUID uuid = currSynRcvdsock.syscallUUID;
