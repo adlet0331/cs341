@@ -54,14 +54,14 @@ void TCPAssignment::systemCallback(UUID syscallUUID, int pid,
       this->syscall_close(syscallUUID, pid, get<int>(param.params[0]));
       break;
     case READ:
-      // this->syscall_read(syscallUUID, pid, get<int>(param.params[0]),
-      //                    get<void *>(param.params[1]),
-      //                    get<int>(param.params[2]));
+      this->syscall_read(syscallUUID, pid, get<int>(param.params[0]),
+                         get<void *>(param.params[1]),
+                         get<int>(param.params[2]));
       break;
     case WRITE:
-      // this->syscall_write(syscallUUID, pid, get<int>(param.params[0]),
-      //                     get<void *>(param.params[1]),
-      //                     get<int>(param.params[2]));
+      this->syscall_write(syscallUUID, pid, get<int>(param.params[0]),
+                          get<void *>(param.params[1]),
+                          get<int>(param.params[2]));
       break;
     case CONNECT: {
       this->syscall_connect(
