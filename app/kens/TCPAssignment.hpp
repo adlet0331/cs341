@@ -121,6 +121,7 @@ class TCPAssignment : public HostModule,
 private:
   virtual void timerCallback(std::any payload) final;
   map<socket_data::StatusKey, socket_data::StatusVar> SocketStatusMap;
+  map<socket_data::StatusKey, void *> SocketFileDescripterMap;
   list<UUID> SyscallStacks;
 
 public:
@@ -150,6 +151,8 @@ private:
   void syscall_bind(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen);
   void syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
   void syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
+  void syscall_read(UUID syscallUUId, int pid, int sockfd, void * addr, socklen_t addrlen);
+  void syscall_write(UUID syscallUUId, int pid, int sockfd, void * addr, socklen_t addrlen);
   void returnSystemCallCustom(UUID syscallUUID, int var);
 };
 

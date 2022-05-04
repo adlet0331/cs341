@@ -56,12 +56,12 @@ void TCPAssignment::systemCallback(UUID syscallUUID, int pid,
     case READ:
       this->syscall_read(syscallUUID, pid, get<int>(param.params[0]),
                          get<void *>(param.params[1]),
-                         get<int>(param.params[2]));
+                         (socklen_t)get<int>(param.params[2]));
       break;
     case WRITE:
       this->syscall_write(syscallUUID, pid, get<int>(param.params[0]),
                           get<void *>(param.params[1]),
-                          get<int>(param.params[2]));
+                          (socklen_t)get<int>(param.params[2]));
       break;
     case CONNECT: {
       this->syscall_connect(
@@ -400,6 +400,13 @@ void TCPAssignment::catchAccept(int listeningfd, int processid){
     this->returnSystemCallCustom(waitingKey, estabedsocket);
   }
   return;
+}
+
+void TCPAssignment::syscall_read(UUID syscallUUId, int pid, int sockfd, void * addr, socklen_t addrlen){
+  
+}
+void TCPAssignment::syscall_write(UUID syscallUUId, int pid, int sockfd, void * addr, socklen_t addrlen){
+
 }
 
 void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
