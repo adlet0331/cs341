@@ -211,7 +211,7 @@ void TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struc
   MyPacket fstPacket((size_t)54);
 
   fstPacket.IPAddrWrite(client_ip,server_ip);
-  fstPacket.TCPHeadWrite(client_ip, server_ip, client_port, server_port, randSeqNum, 0, 0b10);
+  fstPacket.TCPHeadWrite(client_ip, server_ip, client_port, server_port, randSeqNum, 0, 0b10, 0, 0);
 
   // Status Change Listen -> SysSent 
   SocketStatusMap[make_pair(sockfd, pid)] = socket_data::SysSentStatus(syscallUUID, pid, server_ip, server_port, client_ip, client_port);
@@ -402,11 +402,29 @@ void TCPAssignment::catchAccept(int listeningfd, int processid){
   return;
 }
 
-void TCPAssignment::syscall_read(UUID syscallUUId, int pid, int sockfd, void * addr, socklen_t addrlen){
+void TCPAssignment::syscall_read(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen){
   
 }
-void TCPAssignment::syscall_write(UUID syscallUUId, int pid, int sockfd, void * addr, socklen_t addrlen){
+void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen){
+  // Establish 된 socket_data를 가져옴
+  struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
+  if (currEstabSocket == nullptr) this->returnSystemCallCustom(syscallUUID, -1);
 
+  in_addr_t server_ip = currEstabSocket->destinationip;
+  uint16_t server_port = currEstabSocket->destinationport;
+  in_addr_t client_ip = currEstabSocket->sourceip;
+  uint16_t client_port = currEstabSocket->sourceport;
+  uint32_t seqnum = currEstabSocket->SEQ;
+  uint32_t acknum = currEstabSocket->ACK;
+
+  MyPacket newpacket{size_t(54 + addrlen)};
+  newpacket.IPAddrWrite(client_ip, server_ip);
+  newpacket.TCPHeadWrite(client_ip, server_ip, client_port, server_port, seqnum, acknum, 0b010000, addr, addrlen);
+
+  sendPacket("IPv4", std::move(newpacket.pkt));
+
+  this->returnSystemCallCustom(syscallUUID, -1);
+  return;
 }
 
 void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
@@ -467,7 +485,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             uint32_t ACKNum = receivedpacket.SeqNum() + 1;
             
             newpacket.IPAddrWrite(destination_ip, source_ip);
-            newpacket.TCPHeadWrite(source_ip, destination_ip, destination_port, source_port, randSeqNum, ACKNum, 0b010010);
+            newpacket.TCPHeadWrite(source_ip, destination_ip, destination_port, source_port, randSeqNum, ACKNum, 0b010010, 0, 0);
 
             sendPacket("IPv4", std::move(newpacket.pkt));
 
@@ -493,13 +511,14 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
             MyPacket newpacket{size_t(54)};
 
+            uint32_t newSEQNum = receivedpacket.ACKNum();
             uint32_t newACKNum = receivedpacket.SeqNum() + 1;
             
             newpacket.IPAddrWrite(destination_ip, source_ip);
-            newpacket.TCPHeadWrite(destination_ip, source_ip, destination_port, source_port, 0, newACKNum, 0b010000);
+            newpacket.TCPHeadWrite(destination_ip, source_ip, destination_port, source_port, newSEQNum, newACKNum, 0b010000, 0, 0);
 
             //EstabStatus 상태인 socket_data 생성해서 넣어주기
-            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port};
+            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port, newSEQNum, newACKNum};
 
             this->sendPacket("IPv4", std::move(newpacket.pkt));
 
@@ -528,7 +547,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             thisListeningsocketPointer->handshakingStatusKeyList.remove({listeningfd, processid});
 
             //Estab 상태인 socket_data 생성해서 넣어주기
-            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port};
+            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port, receivedpacket.ACKNum(), receivedpacket.SeqNum()};
             thisListeningsocketPointer->establishedStatusKeyList.push_back(make_pair(socketfd, processid));
             
             this->catchAccept(listeningfd, processid);
@@ -544,7 +563,9 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   }
 }
 
-void TCPAssignment::timerCallback(any payload) {}
+void TCPAssignment::timerCallback(any payload) {
+  
+}
 
 void TCPAssignment::returnSystemCallCustom(UUID systemCall, int val) {
   
@@ -564,7 +585,7 @@ void MyPacket::IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr) {
 }
 
 void MyPacket::TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip, 
-    uint16_t source_port, uint16_t dest_port, uint32_t SeqNum, uint32_t ACKNum, uint16_t flag) {
+    uint16_t source_port, uint16_t dest_port, uint32_t SeqNum, uint32_t ACKNum, uint16_t flag, void * data_addr, size_t data_size) {
   source_port = htons(source_port);
   this->pkt.writeData((size_t)34, &source_port, (size_t)2);
   dest_port = htons(dest_port);
@@ -579,12 +600,14 @@ void MyPacket::TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip,
   uint16_t window =51200;
   window = htons(window);
   this->pkt.writeData((size_t)48, &window, (size_t)2);
-  uint8_t buffer[20]={0,};
+  uint8_t buffer[20 + data_size]={0,};
   uint16_t zero =0;
   this->pkt.writeData((size_t)50, &zero, (size_t)2);
-  this->pkt.readData(34,buffer,20);
+  this->pkt.readData(34, buffer, 20 + data_size);
 
-  uint16_t checkSum = 65535 - NetworkUtil::tcp_sum(source_ip,dest_ip,buffer,(size_t)20);
+  this->pkt.writeData((size_t)54, data_addr, data_size);
+
+  uint16_t checkSum = 65535 - NetworkUtil::tcp_sum(source_ip, dest_ip, buffer, (size_t)20 + data_size);
   checkSum = htons(checkSum);
   this->pkt.writeData((size_t)50, &checkSum, (size_t)2);
 }

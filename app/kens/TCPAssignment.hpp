@@ -26,7 +26,7 @@ public:
   MyPacket(size_t in_size): pkt{Packet(in_size)} {}
   MyPacket(Packet packet): pkt{packet} {}
   void IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr);
-  void TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip, uint16_t source_port, uint16_t dest_port, uint32_t SeqNum, uint32_t AckNum, uint16_t flag); 
+  void TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip, uint16_t source_port, uint16_t dest_port, uint32_t SeqNum, uint32_t AckNum, uint16_t flag, void * data_addr, size_t data_size); 
   in_addr_t source_ip();
   in_addr_t dest_ip();
   uint16_t source_port();
@@ -108,7 +108,9 @@ public:
     uint16_t destinationport;
     in_addr_t sourceip;
     uint16_t sourceport;
-    EstabStatus(UUID uuid, int pid, in_addr_t daddr, uint16_t dp, in_addr_t saddr, uint16_t sp): syscallUUID{uuid}, processid{pid}, destinationip{daddr}, destinationport{dp}, sourceip{saddr}, sourceport{sp} {};
+    uint32_t SEQ;
+    uint32_t ACK;
+    EstabStatus(UUID uuid, int pid, in_addr_t daddr, uint16_t dp, in_addr_t saddr, uint16_t sp, uint32_t seq, uint32_t ack): syscallUUID{uuid}, processid{pid}, destinationip{daddr}, destinationport{dp}, sourceip{saddr}, sourceport{sp}, SEQ{seq}, ACK{ack} {};
   };
 
   using StatusVar = variant<ClosedStatus, BindStatus, ListeningStatus, SysSentStatus, SynRcvdStatus, EstabStatus>;
@@ -151,8 +153,8 @@ private:
   void syscall_bind(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen);
   void syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
   void syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
-  void syscall_read(UUID syscallUUId, int pid, int sockfd, void * addr, socklen_t addrlen);
-  void syscall_write(UUID syscallUUId, int pid, int sockfd, void * addr, socklen_t addrlen);
+  void syscall_read(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen);
+  void syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen);
   void returnSystemCallCustom(UUID syscallUUID, int var);
 };
 
