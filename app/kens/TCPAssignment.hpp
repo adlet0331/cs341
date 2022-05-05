@@ -34,6 +34,10 @@ public:
   uint32_t SeqNum();
   uint32_t ACKNum();
   uint16_t flag(); 
+  bool checksum();
+  uint16_t size();
+  uint16_t makechecksum(uint32_t source_ip, uint32_t dest_ip, size_t length);
+
   void SeqNumAdd(int n);
   void ACKNumAdd(int n);
 };
