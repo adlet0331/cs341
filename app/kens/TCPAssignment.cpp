@@ -462,6 +462,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   in_addr_t source_ip = receivedpacket.source_ip();
   uint16_t source_port = receivedpacket.source_port();
 
+  uint16_t packetsize = receivedpacket.size();
   uint32_t ACKNum = receivedpacket.ACKNum();
   uint32_t SEQNum = receivedpacket.SeqNum();
 
@@ -588,12 +589,25 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
               return;
             }
             else if (currPacketType != PACKET_TYPE_ACK) return;
-            // Write Send 한 패킷
             
+            // Write Send 한 패킷
+            if (packetsize !=0) {
+              SocketReceiveBufferMap[make_pair(socketfd,processid)] = receivedpacket;
+
+              Packet pkt((size_t)52);
+              MyPacket ackPacket(pkt);
+
+              ackPacket.TCPHeadWrite(destination_ip,source_ip,destination_port,source_port, 
+                ACKNum, ntohl(htonl(SEQNum)+(uint32_t)packetsize), 0b010010, 0, 0);
+
+              sendPacket("IPv4", std::move(ackPacket.pkt));
+            }
+          
             // Write Send 한 후 돌아온 ACK 패킷
             if (currEstabsock.ACK == receivedpacket.SeqNum()){
               SocketSendBufferMap[make_pair(socketfd, processid)].pop();
             }
+
 
         },
         [](auto sock_data) {
@@ -614,8 +628,8 @@ void TCPAssignment::timerCallback(any payload) {
 
   socket_data::BufferQueue bufferQueue;
 
-  if (payloadData.isSender) bufferQueue = SocketSendBufferMap.find(key)->second;
-  else bufferQueue = SocketReceiveBufferMap.find(key)->second;
+  // if (payloadData.isSender) bufferQueue = SocketSendBufferMap.find(key)->second;
+  // else bufferQueue = SocketReceiveBufferMap.find(key)->second;
 
   MyPacket headPacket = bufferQueue.front();
 
@@ -719,7 +733,7 @@ uint16_t MyPacket::flag() {
 uint16_t MyPacket::size() {
   uint16_t ret;
   this->pkt.readData((size_t)16, &ret, (size_t)2);
-  ret = (ntohl(ret));
+  ret = (ntohl(ret)) - (size_t)40;
   return ret;
 }
 
@@ -743,7 +757,7 @@ bool MyPacket::checksum() {
   checksum = (ntohl(checksum));
   uint32_t source_ip = this->source_ip();
   uint32_t dest_ip = this->dest_ip();
-  uint16_t data_size = this->size() - (size_t)40;
+  uint16_t data_size = this->size();
 
   uint16_t realchecksum = this->makechecksum(source_ip, dest_ip, (size_t)20 + data_size);
 

@@ -138,7 +138,7 @@ class TCPAssignment : public HostModule,
 private:
   virtual void timerCallback(std::any payload) final;
   map<socket_data::StatusKey, socket_data::StatusVar> SocketStatusMap;
-  map<socket_data::StatusKey, queue<MyPacket>> SocketReceiveBufferMap;
+  map<socket_data::StatusKey, MyPacket> SocketReceiveBufferMap;
   map<socket_data::StatusKey, queue<MyPacket>> SocketSendBufferMap;
   list<UUID> SyscallStacks;
 
