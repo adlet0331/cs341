@@ -454,6 +454,9 @@ void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * 
 void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   // 온 Packet 정보 받아오기
   MyPacket receivedpacket(packet);
+  if ( !receivedpacket.checksum() );
+    return;
+    
   in_addr_t destination_ip = receivedpacket.dest_ip();
   uint16_t destination_port = receivedpacket.dest_port();
   in_addr_t source_ip = receivedpacket.source_ip();
@@ -657,14 +660,10 @@ void MyPacket::TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip,
   uint16_t window =51200;
   window = htons(window);
   this->pkt.writeData((size_t)48, &window, (size_t)2);
-  uint8_t buffer[20 + data_size]={0,};
-  uint16_t zero =0;
-  this->pkt.writeData((size_t)50, &zero, (size_t)2);
-  this->pkt.readData(34, buffer, 20 + data_size);
-
+  
   this->pkt.writeData((size_t)54, data_addr, data_size);
 
-  uint16_t checkSum = 65535 - NetworkUtil::tcp_sum(source_ip, dest_ip, buffer, (size_t)20 + data_size);
+  uint16_t checkSum = this->makechecksum(source_ip, dest_ip, (size_t)20 + data_size);
   checkSum = htons(checkSum);
   this->pkt.writeData((size_t)50, &checkSum, (size_t)2);
 }
@@ -716,6 +715,13 @@ uint16_t MyPacket::flag() {
   return ret;
 }
 
+uint16_t MyPacket::size() {
+  uint16_t ret;
+  this->pkt.readData((size_t)16, &ret, (size_t)2);
+  ret = (ntohl(ret));
+  return ret;
+}
+
 void MyPacket::ACKNumAdd(int n) {
   uint32_t ACKNum = this->ACKNum();
   ACKNum += n;
@@ -728,6 +734,36 @@ void MyPacket::SeqNumAdd(int n) {
   SeqNum += n;
   SeqNum = htonl(SeqNum);
   this->pkt.writeData((size_t)38, &SeqNum, (size_t)4);
+}
+
+bool MyPacket::checksum() {
+  uint16_t checksum;
+  this->pkt.readData((size_t)50, &checksum, (size_t)2);
+  checksum = (ntohl(checksum));
+  uint32_t source_ip = this->source_ip();
+  uint32_t dest_ip = this->dest_ip();
+  uint16_t data_size = this->size() - (size_t)40;
+
+  uint16_t realchecksum = this->makechecksum(source_ip, dest_ip, (size_t)20 + data_size);
+
+  if (checksum == realchecksum)
+    return true;
+  else
+    return false;
+  
+}
+
+uint16_t MyPacket::makechecksum(uint32_t source_ip, uint32_t dest_ip, size_t length)
+{
+  uint8_t buffer[length]={0,};
+  uint16_t zero =0;
+  
+  this->pkt.writeData((size_t)50, &zero, (size_t)2);
+  this->pkt.readData(34, buffer, length);
+
+  uint16_t checkSum = 65535 - NetworkUtil::tcp_sum(source_ip, dest_ip, buffer, length);
+
+  return checkSum;
 }
 
 } // namespace E
