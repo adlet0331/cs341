@@ -435,6 +435,9 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   in_addr_t source_ip = receivedpacket.source_ip();
   uint16_t source_port = receivedpacket.source_port();
 
+  uint32_t ACKNum = receivedpacket.ACKNum();
+  uint32_t SEQNum = receivedpacket.SeqNum();
+
   // 받은 패킷의 상태 확인 -> 3-way handshake 중 몇 번째 패킷인지 SYNbit 와 ACKbit로 판별
   uint16_t myPacketFlag = receivedpacket.flag() & 0b010010;
   int currPacketType = PACKET_TYPE_NOT_DECLARED;
@@ -481,11 +484,9 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             mt19937 gen(rd());
             uniform_int_distribution<int> dis(0, 100000000);
             int randSeqNum = dis(gen);
-
-            uint32_t ACKNum = receivedpacket.SeqNum() + 1;
             
             newpacket.IPAddrWrite(destination_ip, source_ip);
-            newpacket.TCPHeadWrite(source_ip, destination_ip, destination_port, source_port, randSeqNum, ACKNum, 0b010010, 0, 0);
+            newpacket.TCPHeadWrite(source_ip, destination_ip, destination_port, source_port, randSeqNum, SEQNum + 1, 0b010010, 0, 0);
 
             sendPacket("IPv4", std::move(newpacket.pkt));
 
@@ -511,8 +512,8 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
             MyPacket newpacket{size_t(54)};
 
-            uint32_t newSEQNum = receivedpacket.ACKNum();
-            uint32_t newACKNum = receivedpacket.SeqNum() + 1;
+            uint32_t newSEQNum = ACKNum;
+            uint32_t newACKNum = SEQNum + 1;
             
             newpacket.IPAddrWrite(destination_ip, source_ip);
             newpacket.TCPHeadWrite(destination_ip, source_ip, destination_port, source_port, newSEQNum, newACKNum, 0b010000, 0, 0);
@@ -547,7 +548,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             thisListeningsocketPointer->handshakingStatusKeyList.remove({listeningfd, processid});
 
             //Estab 상태인 socket_data 생성해서 넣어주기
-            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port, receivedpacket.ACKNum(), receivedpacket.SeqNum()};
+            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port, ACKNum, SEQNum};
             thisListeningsocketPointer->establishedStatusKeyList.push_back(make_pair(socketfd, processid));
             
             this->catchAccept(listeningfd, processid);
@@ -557,7 +558,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             // Establish 된 소켓
             
             
-          
+
         },
         [](auto sock_data) {
           // 위의 상태와 다른 경우. 에러처리
