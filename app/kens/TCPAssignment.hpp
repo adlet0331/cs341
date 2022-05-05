@@ -171,7 +171,6 @@ private:
   void syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
   void syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
   void syscall_read(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen);
-  void trigger_sender_queue(int sockfd, int pid);
   void syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen);
   void returnSystemCallCustom(UUID syscallUUID, int var);
 };

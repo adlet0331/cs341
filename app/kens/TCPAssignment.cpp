@@ -407,20 +407,6 @@ void TCPAssignment::syscall_read(UUID syscallUUID, int pid, int sockfd, void * a
   
 }
 
-void TCPAssignment::trigger_sender_queue(int sockfd, int pid){
-  auto item = SocketSendBufferMap.find(make_pair(sockfd, pid));
-  if (item == SocketSendBufferMap.end()) assert("Trigger Sender Queue is not Existing! Must Make in syscall_write");
-
-  MyPacket headPacket = item->second.front();
-
-  sendPacket("IPv4", std::move(headPacket.pkt));
-
-  uint32_t ACKNum = headPacket.ACKNum();
-  any payload = socket_data::BufferData(sockfd, pid, headPacket.ACKNum(), true);
-  
-  addTimer(payload, 10.0f);
-}
-
 void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen){
   // Establish 된 socket_data를 가져옴
   struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
@@ -445,9 +431,14 @@ void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * 
   send_queue.push(newpacket);
   SocketSendBufferMap[make_pair(sockfd, pid)] = send_queue;
 
-  trigger_sender_queue(sockfd, pid);
+  sendPacket("IPv4", std::move(newpacket.pkt));
 
+  currEstabSocket->SEQ = seqnum + addrlen;
+
+  any payload = socket_data::BufferData(sockfd, pid, newpacket.ACKNum(), true);
   this->returnSystemCallCustom(syscallUUID, addrlen);
+
+  //addTimer(payload, 0.10f);
   return;
 }
 
@@ -623,7 +614,7 @@ void TCPAssignment::timerCallback(any payload) {
   if(headPacket.ACKNum() != payloadData.ACK) return;
 
   sendPacket("IPv4", std::move(headPacket.pkt));
-  addTimer(payload, 10.00f);
+  addTimer(payload, 0.10f);
 
   return;
 }
