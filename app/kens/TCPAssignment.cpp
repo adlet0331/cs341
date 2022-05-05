@@ -408,7 +408,17 @@ void TCPAssignment::syscall_read(UUID syscallUUID, int pid, int sockfd, void * a
 }
 
 void TCPAssignment::trigger_sender_queue(int sockfd, int pid){
-  queue<MyPacket> send_queue = SocketSendBufferMap[make_pair(sockfd, pid)];
+  socket_data::BufferQueue* send_queue = &SocketSendBufferMap.find(make_pair(sockfd, pid))->second;
+  if (send_queue == nullptr) assert("Trigger Sender Queue is not Existing! Must Make in syscall_write");
+
+  MyPacket headPacket = send_queue->front();
+
+  sendPacket("IPv4", std::move(headPacket.pkt));
+
+  uint32_t ACKNum = headPacket.ACKNum();
+  any payload = socket_data::BufferData(sockfd, pid, headPacket.ACKNum());
+  
+  addTimer(payload, 0.100f);
 }
 
 void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen){
@@ -428,10 +438,10 @@ void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * 
   newpacket.TCPHeadWrite(client_ip, server_ip, client_port, server_port, seqnum, acknum, 0b010000, addr, addrlen);
 
   if (SocketSendBufferMap.count(make_pair(sockfd, pid)) == 0){
-    queue<MyPacket> newsenderqueue;
+    socket_data::BufferQueue newsenderqueue;
     SocketSendBufferMap[make_pair(sockfd, pid)] = newsenderqueue;
   }
-  queue<MyPacket> send_queue = SocketSendBufferMap[make_pair(sockfd, pid)];
+  socket_data::BufferQueue send_queue = SocketSendBufferMap[make_pair(sockfd, pid)];
   send_queue.push(newpacket);
 
   trigger_sender_queue(sockfd, pid);
@@ -459,6 +469,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   if      (myPacketFlag == 0b000010) currPacketType = PACKET_TYPE_SYN;
   else if (myPacketFlag == 0b010010) currPacketType = PACKET_TYPE_SYNACK;
   else if (myPacketFlag == 0b010000) currPacketType = PACKET_TYPE_ACK;
+  else if (myPacketFlag == 0b000001) currPacketType = PACKET_TYPE_FINISH;
 
   bool isfinded = false;
   for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
@@ -571,7 +582,14 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
         },
         [&](socket_data::EstabStatus currEstabsock) {
             // Establish 된 소켓
-            
+            if (currPacketType == PACKET_TYPE_FINISH){
+              return;
+            }
+            else if (currPacketType != PACKET_TYPE_ACK) return;
+
+            // CheckSum 체크
+
+            // Write 패킷인지, ACK 패킷인지 확인
             
 
         },
@@ -586,7 +604,17 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 }
 
 void TCPAssignment::timerCallback(any payload) {
-  
+  // For Resending Packet When Time Out
+  socket_data::BufferData bufferData = any_cast<socket_data::BufferData>(payload);
+  socket_data::StatusKey key = make_pair(bufferData.sockfd, bufferData.pid);
+  uint32_t current_ackNum = bufferData.ACK;
+
+  socket_data::BufferQueue bufferQueue = SocketSendBufferMap.find(key)->second;
+
+  socket_data::BufferData headData = bufferQueue.front();
+
+  //sendPacket("IPv4", std::move(headPacket.pkt));
+  //addTimer
 }
 
 void TCPAssignment::returnSystemCallCustom(UUID systemCall, int val) {

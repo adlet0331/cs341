@@ -46,6 +46,15 @@ public:
   using ProcessID = int;
   using StatusKey = pair<SocketFD, ProcessID>;
   using WaitingKey = pair<UUID,struct sockaddr *>;
+  
+  using BufferQueueMap = map<socket_data::StatusKey, queue<MyPacket>>;
+  using BufferQueue = queue<MyPacket>;
+  struct BufferData{
+    SocketFD sockfd;
+    ProcessID pid;
+    uint32_t ACK;
+    BufferData(int fd, int pid, uint32_t ack): sockfd{fd}, pid{pid}, ACK{ack} {};
+  };
 
   struct ClosedStatus{
     UUID syscallUUID;
@@ -136,7 +145,8 @@ public:
     PACKET_TYPE_NOT_DECLARED,
     PACKET_TYPE_SYN,
     PACKET_TYPE_SYNACK,
-    PACKET_TYPE_ACK
+    PACKET_TYPE_ACK,
+    PACKET_TYPE_FINISH
   };
 
 protected:
