@@ -418,7 +418,7 @@ void TCPAssignment::trigger_sender_queue(int sockfd, int pid){
   uint32_t ACKNum = headPacket.ACKNum();
   any payload = socket_data::BufferData(sockfd, pid, headPacket.ACKNum(), true);
   
-  addTimer(payload, 0.100f);
+  addTimer(payload, 10.0f);
 }
 
 void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen){
@@ -454,8 +454,8 @@ void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * 
 void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   // 온 Packet 정보 받아오기
   MyPacket receivedpacket(packet);
-  if ( !receivedpacket.checksum() );
-    return;
+  // if ( !receivedpacket.checksum() );
+  //   return;
     
   in_addr_t destination_ip = receivedpacket.dest_ip();
   uint16_t destination_port = receivedpacket.dest_port();
@@ -588,11 +588,12 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
               return;
             }
             else if (currPacketType != PACKET_TYPE_ACK) return;
-
-            // CheckSum 체크
-
-            // Write 패킷인지, ACK 패킷인지 확인
-
+            // Write Send 한 패킷
+            
+            // Write Send 한 후 돌아온 ACK 패킷
+            if (currEstabsock.ACK == receivedpacket.SeqNum()){
+              SocketSendBufferMap[make_pair(socketfd, processid)].pop();
+            }
 
         },
         [](auto sock_data) {
@@ -622,7 +623,7 @@ void TCPAssignment::timerCallback(any payload) {
   if(headPacket.ACKNum() != payloadData.ACK) return;
 
   sendPacket("IPv4", std::move(headPacket.pkt));
-  addTimer(payload, 0.100f);
+  addTimer(payload, 10.00f);
 
   return;
 }
