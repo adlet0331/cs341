@@ -15,6 +15,7 @@
 #include <list>
 #include <functional>
 #include <random>
+#include <iostream>
 
 using namespace std;
 
@@ -405,6 +406,11 @@ void TCPAssignment::catchAccept(int listeningfd, int processid){
 void TCPAssignment::syscall_read(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen){
   
 }
+
+void TCPAssignment::trigger_sender_queue(int sockfd, int pid){
+  queue<MyPacket> send_queue = SocketSendBufferMap[make_pair(sockfd, pid)];
+}
+
 void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen){
   // Establish 된 socket_data를 가져옴
   struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
@@ -421,9 +427,18 @@ void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * 
   newpacket.IPAddrWrite(client_ip, server_ip);
   newpacket.TCPHeadWrite(client_ip, server_ip, client_port, server_port, seqnum, acknum, 0b010000, addr, addrlen);
 
-  sendPacket("IPv4", std::move(newpacket.pkt));
+  if (SocketSendBufferMap.count(make_pair(sockfd, pid)) == 0){
+    queue<MyPacket> newsenderqueue;
+    SocketSendBufferMap[make_pair(sockfd, pid)] = newsenderqueue;
+  }
+  queue<MyPacket> send_queue = SocketSendBufferMap[make_pair(sockfd, pid)];
+  send_queue.push(newpacket);
 
-  this->returnSystemCallCustom(syscallUUID, addrlen);
+  trigger_sender_queue(sockfd, pid);
+
+  //sendPacket("IPv4", std::move(newpacket.pkt));
+
+  //this->returnSystemCallCustom(syscallUUID, addrlen);
   return;
 }
 
