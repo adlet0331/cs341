@@ -47,14 +47,16 @@ public:
   using StatusKey = pair<SocketFD, ProcessID>;
   using WaitingKey = pair<UUID,struct sockaddr *>;
   
-  using BufferQueueMap = map<socket_data::StatusKey, queue<MyPacket>>;
   using BufferQueue = queue<MyPacket>;
+  using BufferQueueMap = map<socket_data::StatusKey, BufferQueue>;
   struct BufferData{
     SocketFD sockfd;
     ProcessID pid;
     uint32_t ACK;
-    BufferData(int fd, int pid, uint32_t ack): sockfd{fd}, pid{pid}, ACK{ack} {};
+    bool isSender;
+    BufferData(int fd, int pid, uint32_t ack, bool is): sockfd{fd}, pid{pid}, ACK{ack}, isSender{is} {};
   };
+  using BufferDataMap = map<socket_data::StatusKey, BufferData>;
 
   struct ClosedStatus{
     UUID syscallUUID;

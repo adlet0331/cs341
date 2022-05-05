@@ -408,15 +408,15 @@ void TCPAssignment::syscall_read(UUID syscallUUID, int pid, int sockfd, void * a
 }
 
 void TCPAssignment::trigger_sender_queue(int sockfd, int pid){
-  socket_data::BufferQueue* send_queue = &SocketSendBufferMap.find(make_pair(sockfd, pid))->second;
-  if (send_queue == nullptr) assert("Trigger Sender Queue is not Existing! Must Make in syscall_write");
+  auto item = SocketSendBufferMap.find(make_pair(sockfd, pid));
+  if (item == SocketSendBufferMap.end()) assert("Trigger Sender Queue is not Existing! Must Make in syscall_write");
 
-  MyPacket headPacket = send_queue->front();
+  MyPacket headPacket = item->second.front();
 
   sendPacket("IPv4", std::move(headPacket.pkt));
 
   uint32_t ACKNum = headPacket.ACKNum();
-  any payload = socket_data::BufferData(sockfd, pid, headPacket.ACKNum());
+  any payload = socket_data::BufferData(sockfd, pid, headPacket.ACKNum(), true);
   
   addTimer(payload, 0.100f);
 }
@@ -443,12 +443,11 @@ void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * 
   }
   socket_data::BufferQueue send_queue = SocketSendBufferMap[make_pair(sockfd, pid)];
   send_queue.push(newpacket);
+  SocketSendBufferMap[make_pair(sockfd, pid)] = send_queue;
 
   trigger_sender_queue(sockfd, pid);
 
-  //sendPacket("IPv4", std::move(newpacket.pkt));
-
-  //this->returnSystemCallCustom(syscallUUID, addrlen);
+  this->returnSystemCallCustom(syscallUUID, addrlen);
   return;
 }
 
@@ -590,7 +589,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             // CheckSum 체크
 
             // Write 패킷인지, ACK 패킷인지 확인
-            
+
 
         },
         [](auto sock_data) {
@@ -605,16 +604,24 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
 void TCPAssignment::timerCallback(any payload) {
   // For Resending Packet When Time Out
-  socket_data::BufferData bufferData = any_cast<socket_data::BufferData>(payload);
-  socket_data::StatusKey key = make_pair(bufferData.sockfd, bufferData.pid);
-  uint32_t current_ackNum = bufferData.ACK;
+  socket_data::BufferData payloadData = any_cast<socket_data::BufferData>(payload);
+  socket_data::StatusKey key = make_pair(payloadData.sockfd, payloadData.pid);
+  uint32_t current_ackNum = payloadData.ACK;
 
-  socket_data::BufferQueue bufferQueue = SocketSendBufferMap.find(key)->second;
+  socket_data::BufferQueue bufferQueue;
 
-  socket_data::BufferData headData = bufferQueue.front();
+  if (payloadData.isSender) bufferQueue = SocketSendBufferMap.find(key)->second;
+  else bufferQueue = SocketReceiveBufferMap.find(key)->second;
 
-  //sendPacket("IPv4", std::move(headPacket.pkt));
-  //addTimer
+  MyPacket headPacket = bufferQueue.front();
+
+  // 전에 타이머 오버가 된게 이미 pop 되었으면 잘 처리 된것
+  if(headPacket.ACKNum() != payloadData.ACK) return;
+
+  sendPacket("IPv4", std::move(headPacket.pkt));
+  addTimer(payload, 0.100f);
+
+  return;
 }
 
 void TCPAssignment::returnSystemCallCustom(UUID systemCall, int val) {
