@@ -423,7 +423,7 @@ void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * 
 
   sendPacket("IPv4", std::move(newpacket.pkt));
 
-  this->returnSystemCallCustom(syscallUUID, -1);
+  this->returnSystemCallCustom(syscallUUID, addrlen);
   return;
 }
 
@@ -552,6 +552,12 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             
             this->catchAccept(listeningfd, processid);
           }
+        },
+        [&](socket_data::EstabStatus currEstabsock) {
+            // Establish 된 소켓
+            
+            
+          
         },
         [](auto sock_data) {
           // 위의 상태와 다른 경우. 에러처리
