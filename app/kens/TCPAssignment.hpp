@@ -141,12 +141,12 @@ class TCPAssignment : public HostModule,
 private:
   virtual void timerCallback(std::any payload) final;
   map<socket_data::StatusKey, socket_data::StatusVar> SocketStatusMap;
-  map<socket_data::StatusKey, void*> SocketReceiveBufferMap;
+  map<socket_data::StatusKey, pair<void*, size_t>> SocketReceiveBufferMap;
   socket_data::BufferQueueMap SocketSendBufferMap;
+  map<socket_data::StatusKey, tuple<UUID,void*,size_t>> SocketReadMap;
 
   int SenderBufferSize = 10;
   uint32_t RTT = (uint32_t) 1e10;
-  list<UUID> SyscallStacks;
   list<pair<UUID, SystemCallParameter>> SyscallStacks;
 
 public:
@@ -180,6 +180,7 @@ private:
   void syscall_read(UUID syscallUUID, int pid, int sockfd, void * addr, size_t addrlen);
   void push_and_trigger(int pid, int sockfd, MyPacket packet);
   void trigger_sendqueue(int sockfd, int pid);
+  void trigger_read(int sockfd, int pid);
   void syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, size_t addrlen);
   void returnSystemCallCustom(UUID syscallUUID, int var);
 };

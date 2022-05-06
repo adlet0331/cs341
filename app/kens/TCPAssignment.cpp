@@ -401,9 +401,41 @@ void TCPAssignment::catchAccept(int listeningfd, int processid){
   return;
 }
 
-void TCPAssignment::syscall_read(UUID syscallUUID, int pid, int sockfd, void * addr, size_t addrlen){
-  this->returnSystemCallCustom(syscallUUID, 0);
+void TCPAssignment::syscall_read(UUID syscallUUID, int pid, int socketfd, void * addr, size_t addrlen){ 
+  SocketReadMap[make_pair(socketfd,pid)] = (make_tuple(syscallUUID, addr, addrlen));
+
+  if (SocketReceiveBufferMap.count(make_pair(socketfd, pid)) != (size_t)0 )
+    trigger_read(socketfd, pid);
+  
   return;
+}
+
+void TCPAssignment::trigger_read(int socketfd, int pid){
+  void* receivebuffer = SocketReceiveBufferMap[make_pair(socketfd, pid)].first;
+  size_t bufferDataSize = SocketReceiveBufferMap[make_pair(socketfd, pid)].second;
+
+  if (SocketReadMap.count(make_pair(socketfd, pid)) ==0)
+    return;
+
+  UUID syscallUUID = get<0>(SocketReadMap[make_pair(socketfd, pid)]);
+  void* buffer = get<1>(SocketReadMap[make_pair(socketfd, pid)]);
+  size_t addrlen = get<2>(SocketReadMap[make_pair(socketfd, pid)]);
+
+  if (bufferDataSize < addrlen)
+    return;
+
+  memcpy(buffer, receivebuffer, addrlen);
+  void* newbuffer = calloc((size_t)2097152, sizeof(char));
+  size_t newBufferDataSize = bufferDataSize - addrlen; 
+
+  memcpy(newbuffer, (receivebuffer + addrlen), newBufferDataSize);
+
+  SocketReceiveBufferMap[make_pair(socketfd, pid)] = make_pair(newbuffer,newBufferDataSize);
+
+  free(buffer);
+
+  this->returnSystemCallCustom(syscallUUID,addrlen);
+
 }
 
 void TCPAssignment::trigger_sendqueue(int sockfd, int pid){
@@ -604,27 +636,28 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             if (datasize !=0) {
               if (SocketReceiveBufferMap.count(make_pair(socketfd, processid)) == (size_t)0) {
                 //버퍼가 없을때(이전에 write 패킷을 받은 적이 없을 때)
-                SocketReceiveBufferMap[make_pair(socketfd, processid)] = calloc((size_t)2097152, sizeof(char));
-                void* receiveBuffer = SocketReceiveBufferMap[make_pair(socketfd, processid)];
-
+                
+                void* receiveBuffer = calloc((size_t)2097152, sizeof(char));
                 receivedpacket.pkt.readData((size_t)54, receiveBuffer,datasize);
 
+                SocketReceiveBufferMap[make_pair(socketfd, processid)] = make_pair(receiveBuffer, datasize);
+
+                trigger_read(socketfd, processid);
               }
               else {
-                //버퍼가 있을때(이미 write 패킷을 받은 적이 있어서 block 된 리드가 있을리 없다.)
-                void* receiveBuffer = SocketReceiveBufferMap[make_pair(socketfd, processid)];
-                receivedpacket.pkt.readData((size_t)54, receiveBuffer,datasize);
+                void* receiveBuffer = SocketReceiveBufferMap[make_pair(socketfd, processid)].first;
+                size_t bufferDataSize = SocketReceiveBufferMap[make_pair(socketfd, processid)].second;
+
+                receivedpacket.pkt.readData((size_t)54, (receiveBuffer + bufferDataSize), datasize);
+                SocketReceiveBufferMap[make_pair(socketfd, processid)] = make_pair(receiveBuffer, datasize+bufferDataSize);
               }
 
-            
               MyPacket ackPacket((size_t)54);
 
               ackPacket.TCPHeadWrite(destination_ip,source_ip,destination_port,source_port, 
                 ACKNum, ntohl(htonl(SEQNum)+(uint32_t)datasize), 0b010010, 0, 0);
 
               sendPacket("IPv4", std::move(ackPacket.pkt));
-            
-
             }
             // Write Send 한 후 돌아온 ACK 패킷
             else if (currEstabsock.ACK == receivedpacket.SeqNum()){
