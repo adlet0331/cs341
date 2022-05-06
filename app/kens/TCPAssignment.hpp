@@ -143,7 +143,8 @@ private:
   map<socket_data::StatusKey, socket_data::StatusVar> SocketStatusMap;
   map<socket_data::StatusKey, void*> SocketReceiveBufferMap;
   socket_data::BufferQueueMap SocketSendBufferMap;
-  int SenderBufferSize = 1;
+  int SenderBufferSize = 10;
+  uint32_t RTT = (uint32_t) 1e10;
   list<UUID> SyscallStacks;
 
 public:
@@ -176,7 +177,7 @@ private:
   void syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
   void syscall_read(UUID syscallUUID, int pid, int sockfd, void * addr, size_t addrlen);
   void push_and_trigger(int pid, int sockfd, MyPacket packet);
-  void trigger_sendqueue(int pid, int sockfd);
+  void trigger_sendqueue(int sockfd, int pid);
   void syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, size_t addrlen);
   void returnSystemCallCustom(UUID syscallUUID, int var);
 };

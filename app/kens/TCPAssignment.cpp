@@ -114,10 +114,6 @@ void TCPAssignment::systemCallback(UUID syscallUUID, int pid,
 }
 
 void TCPAssignment::syscall_socket(UUID syscallUUID, int pid, int domain, int type, int protocol){
-  if (domain != AF_INET) printf("SYSCALL_SOCKET: domain != AF_INET\n");
-  if (type != SOCK_STREAM) printf("SYSCALL_SOCKET: type != SOCK_STREAM\n");
-  if (protocol != IPPROTO_TCP) printf("SYSCALL_SOCKET: protocol != IPPROTO_TCP\n");
-
   int socketfd = createFileDescriptor(pid);
 
   SocketStatusMap[make_pair(socketfd, pid)] = socket_data::ClosedStatus{syscallUUID, pid}; 
@@ -418,7 +414,7 @@ void TCPAssignment::trigger_sendqueue(int sockfd, int pid){
     // 윈도우 사이즈 이상일 때 바로 리턴
     if (index >= SenderBufferSize) return;
 
-    uint32_t ackNum = mpkt.ACKNum();
+    uint32_t ackNum = mpkt.SeqNum();
 
     if (!mpkt.isSent){
       sendPacket("IPv4", std::move(mpkt.pkt));
@@ -426,7 +422,7 @@ void TCPAssignment::trigger_sendqueue(int sockfd, int pid){
 
       mpkt.isSent = true;
       any payload = socket_data::BufferData(true, sockfd, pid, ackNum);
-      //addTimer(payload, 10.10f);
+      addTimer(payload, RTT);
     }
 
     index += 1;
@@ -630,12 +626,12 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             
 
             }
-          
             // Write Send 한 후 돌아온 ACK 패킷
-            if (currEstabsock.ACK == receivedpacket.SeqNum()){
+            else if (currEstabsock.ACK == receivedpacket.SeqNum()){
               SocketSendBufferMap[make_pair(socketfd, processid)].pop_front();
               trigger_sendqueue(socketfd,processid);
             }
+            else return;
 
 
         },
@@ -652,35 +648,43 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 void TCPAssignment::timerCallback(any payload) {
   // For Resending Packet When Time Out
   socket_data::BufferData payloadData = any_cast<socket_data::BufferData>(payload);
-  //printf("Timeout %u\n", payloadData.ACK);
   int sockfd = payloadData.sockfd;
   int pid = payloadData.pid;
+  bool isSender = payloadData.isSender;
   socket_data::StatusKey key = make_pair(sockfd, pid);
   uint32_t current_ackNum = payloadData.ACK;
+  // syscall_write에서 사용
+  if (isSender){
+    const socket_data::BufferQueue& send_queue = SocketSendBufferMap[key];
+    int index = 0;
+    // 앞에서 부터 순회하면서 ackNum 대소 체크
+    // 크다면 이미 처리 되었다는것, 바로 리턴.
+    // 작다면 처리가 안되었으므로 계속 순회하면서 찾기
+    for(MyPacket myPacket:send_queue){
+      if (index >= SenderBufferSize) return;
 
-  const socket_data::BufferQueue bufferQueue;
+      uint32_t myACK = myPacket.ACKNum();
 
-  const socket_data::BufferQueue send_queue = SocketSendBufferMap[key];
-  int index = 0;
-  // 앞에서 부터 순회하면서 ackNum 대소 체크
-  // 크다면 이미 처리 되었다는것, 바로 리턴.
-  // 작다면 처리가 안되었으므로 계속 순회하면서 찾기
-  for(MyPacket myPacket:send_queue){
-    if (index >= SenderBufferSize) return;
+      if (myACK > current_ackNum) return;
 
-    uint32_t myACK = myPacket.ACKNum();
+      if (myACK == current_ackNum){
+        sendPacket("IPv4", myPacket.pkt);
 
-    if (myACK > current_ackNum) return;
+        if (!myPacket.isSent){
+          this->returnSystemCallCustom(myPacket.syscallUUID, myPacket.datasize);
+          myPacket.isSent = true;
+        }
 
-    if (myACK == current_ackNum){
-      sendPacket("IPv4", std::move(myPacket.pkt));
-
-      this->returnSystemCallCustom(myPacket.syscallUUID, myPacket.datasize);
-
-      addTimer(payload, 0.10f);      
+        addTimer(payload, RTT);
+      }
+      index += 1;
     }
-    index += 1;
   }
+  //
+  else{
+
+  }
+  
 }
 
 void TCPAssignment::returnSystemCallCustom(UUID systemCall, int val) {
