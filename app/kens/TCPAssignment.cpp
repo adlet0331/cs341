@@ -122,8 +122,8 @@ void TCPAssignment::syscall_socket(UUID syscallUUID, int pid, int domain, int ty
 }
 
 void TCPAssignment::syscall_close(UUID syscallUUID, int pid, int sockfd){
+
   removeFileDescriptor(pid, sockfd);
-  
   if (pid >= 0 && sockfd >= 0){
     struct socket_data::EstabStatus* thisListeningsocketPointer = get_if<socket_data::EstabStatus>(&SocketStatusMap.find({sockfd, pid})->second);
     SocketStatusMap.erase(make_pair(sockfd, pid));
@@ -402,6 +402,8 @@ void TCPAssignment::catchAccept(int listeningfd, int processid){
 }
 
 void TCPAssignment::syscall_read(UUID syscallUUID, int pid, int socketfd, void * addr, size_t addrlen){ 
+  // printf("syscall addrlen : %d \n", addrlen);
+  
   SocketReadMap[make_pair(socketfd,pid)] = (make_tuple(syscallUUID, addr, addrlen));
 
   if (SocketReceiveBufferMap.count(make_pair(socketfd, pid)) != (size_t)0 )
@@ -433,7 +435,7 @@ void TCPAssignment::trigger_read(int socketfd, int pid){
   SocketReceiveBufferMap[make_pair(socketfd, pid)] = make_pair(newbuffer, newBufferDataSize);
   SocketReadMap.erase(make_pair(socketfd, pid));
   free(receivebuffer);
-
+  // printf("addrlen: %d \n", addrlen);
   this->returnSystemCallCustom(syscallUUID,addrlen);
 
 }
@@ -509,12 +511,12 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   uint32_t SEQNum = receivedpacket.SeqNum();
 
   // 받은 패킷의 상태 확인 -> 3-way handshake 중 몇 번째 패킷인지 SYNbit 와 ACKbit로 판별
-  uint16_t myPacketFlag = receivedpacket.flag() & 0b010010;
+  uint16_t myPacketFlag = receivedpacket.flag() & 0b010011;
   int currPacketType = PACKET_TYPE_NOT_DECLARED;
   if      (myPacketFlag == 0b000010) currPacketType = PACKET_TYPE_SYN;
   else if (myPacketFlag == 0b010010) currPacketType = PACKET_TYPE_SYNACK;
   else if (myPacketFlag == 0b010000) currPacketType = PACKET_TYPE_ACK;
-  else if (myPacketFlag == 0b000001) currPacketType = PACKET_TYPE_FINISH;
+  else if (myPacketFlag == 0b010001) currPacketType = PACKET_TYPE_FINISH;
 
   bool isfinded = false;
   for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
@@ -627,7 +629,24 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
         },
         [&](socket_data::EstabStatus currEstabsock) {
             // Establish 된 소켓
-            if (currPacketType == PACKET_TYPE_FINISH){
+            if (currPacketType == PACKET_TYPE_FINISH){      
+              if (SocketReadMap.count(make_pair(socketfd,processid)) != 0 && SocketReceiveBufferMap.count(make_pair(socketfd,processid)) != 0)
+              {
+                void* receivebuffer = SocketReceiveBufferMap[make_pair(socketfd, processid)].first;
+                size_t bufferDataSize = SocketReceiveBufferMap[make_pair(socketfd, processid)].second;
+
+                UUID readsyscallUUID = get<0>(SocketReadMap[make_pair(socketfd, processid)]);
+                void* buffer = get<1>(SocketReadMap[make_pair(socketfd, processid)]);
+                size_t addrlen = get<2>(SocketReadMap[make_pair(socketfd, processid)]);
+
+                memcpy(buffer, receivebuffer, bufferDataSize);
+
+                printf("!D@!Daddrlen: %d \n", addrlen);
+
+                SocketReadMap.erase(make_pair(socketfd, processid));
+                SocketReceiveBufferMap.erase(make_pair(socketfd, processid));
+                this->returnSystemCallCustom(readsyscallUUID,bufferDataSize);  
+              }       
               return;
             }
             else if (currPacketType != PACKET_TYPE_ACK) return;
