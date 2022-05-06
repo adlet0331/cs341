@@ -641,17 +641,15 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
                 receivedpacket.pkt.readData((size_t)54, receiveBuffer,datasize);
 
                 SocketReceiveBufferMap[make_pair(socketfd, processid)] = make_pair(receiveBuffer, datasize);
-
-                trigger_read(socketfd, processid);
-                return;
               }
               else {
                 void* receiveBuffer = SocketReceiveBufferMap[make_pair(socketfd, processid)].first;
                 size_t bufferDataSize = SocketReceiveBufferMap[make_pair(socketfd, processid)].second;
 
                 receivedpacket.pkt.readData((size_t)54, (receiveBuffer + bufferDataSize), datasize);
-                SocketReceiveBufferMap[make_pair(socketfd, processid)] = make_pair(receiveBuffer, datasize+bufferDataSize);
+                SocketReceiveBufferMap[make_pair(socketfd, processid)] = make_pair(receiveBuffer, datasize+bufferDataSize); 
               }
+              trigger_read(socketfd, processid);
 
               MyPacket ackPacket((size_t)54);
 
