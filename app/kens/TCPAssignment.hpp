@@ -28,7 +28,7 @@ public:
   UUID syscallUUID;
   MyPacket(size_t in_size): pkt{Packet(in_size)}, isSent{false} {}
   MyPacket(Packet packet): pkt{packet}, isSent{false}  {}
-  void IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr);
+  void IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr, size_t datalen);
   void TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip, uint16_t source_port, uint16_t dest_port, uint32_t SeqNum, uint32_t AckNum, uint16_t flag, void * data_addr, size_t data_size); 
   in_addr_t source_ip();
   in_addr_t dest_ip();

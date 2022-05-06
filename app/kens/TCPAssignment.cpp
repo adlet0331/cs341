@@ -209,7 +209,7 @@ void TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struc
 
   MyPacket fstPacket((size_t)54);
 
-  fstPacket.IPAddrWrite(client_ip,server_ip);
+  fstPacket.IPAddrWrite(client_ip, server_ip, 40);
   fstPacket.TCPHeadWrite(client_ip, server_ip, client_port, server_port, randSeqNum, 0, 0b10, 0, 0);
 
   // Status Change Listen -> SysSent 
@@ -414,7 +414,7 @@ void TCPAssignment::trigger_read(int socketfd, int pid){
   void* receivebuffer = SocketReceiveBufferMap[make_pair(socketfd, pid)].first;
   size_t bufferDataSize = SocketReceiveBufferMap[make_pair(socketfd, pid)].second;
 
-  if (SocketReadMap.count(make_pair(socketfd, pid)) ==0)
+  if (SocketReadMap.count(make_pair(socketfd, pid)) == 0)
     return;
 
   UUID syscallUUID = get<0>(SocketReadMap[make_pair(socketfd, pid)]);
@@ -430,7 +430,7 @@ void TCPAssignment::trigger_read(int socketfd, int pid){
 
   memcpy(newbuffer, (receivebuffer + addrlen), newBufferDataSize);
 
-  SocketReceiveBufferMap[make_pair(socketfd, pid)] = make_pair(newbuffer,newBufferDataSize);
+  SocketReceiveBufferMap[make_pair(socketfd, pid)] = make_pair(newbuffer, newBufferDataSize);
   SocketReadMap.erase(make_pair(socketfd, pid));
   free(receivebuffer);
 
@@ -476,7 +476,7 @@ void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * 
   uint32_t acknum = currEstabSocket->ACK;
 
   MyPacket newpacket{size_t(54 + addrlen)};
-  newpacket.IPAddrWrite(client_ip, server_ip);
+  newpacket.IPAddrWrite(client_ip, server_ip, 40 + addrlen);
   newpacket.TCPHeadWrite(client_ip, server_ip, client_port, server_port, seqnum, acknum, 0b010000, addr, addrlen);
   newpacket.syscallUUID = syscallUUID;
 
@@ -556,7 +556,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             uniform_int_distribution<int> dis(0, 100000000);
             int randSeqNum = dis(gen);
             
-            newpacket.IPAddrWrite(destination_ip, source_ip);
+            newpacket.IPAddrWrite(destination_ip, source_ip, 40);
             newpacket.TCPHeadWrite(source_ip, destination_ip, destination_port, source_port, randSeqNum, SEQNum + 1, 0b010010, 0, 0);
 
             sendPacket("IPv4", std::move(newpacket.pkt));
@@ -586,7 +586,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             uint32_t newSEQNum = ACKNum;
             uint32_t newACKNum = SEQNum + 1;
             
-            newpacket.IPAddrWrite(destination_ip, source_ip);
+            newpacket.IPAddrWrite(destination_ip, source_ip, 40);
             newpacket.TCPHeadWrite(destination_ip, source_ip, destination_port, source_port, newSEQNum, newACKNum, 0b010000, 0, 0);
 
             //EstabStatus 상태인 socket_data 생성해서 넣어주기
@@ -643,6 +643,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
                 SocketReceiveBufferMap[make_pair(socketfd, processid)] = make_pair(receiveBuffer, datasize);
 
                 trigger_read(socketfd, processid);
+                return;
               }
               else {
                 void* receiveBuffer = SocketReceiveBufferMap[make_pair(socketfd, processid)].first;
@@ -654,8 +655,9 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
               MyPacket ackPacket((size_t)54);
 
+              ackPacket.IPAddrWrite(destination_ip, source_ip, 40);
               ackPacket.TCPHeadWrite(destination_ip,source_ip,destination_port,source_port, 
-                ACKNum, ((SEQNum)+(uint32_t)datasize), 0b010000, 0, 0);
+                ACKNum, SEQNum + datasize, 0b010000, 0, 0);
 
               sendPacket("IPv4", std::move(ackPacket.pkt));
             }
@@ -732,9 +734,10 @@ void TCPAssignment::returnSystemCallCustom(UUID systemCall, int val) {
   this->returnSystemCall(systemCall, val);
 }
 
-void MyPacket::IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr) {
+void MyPacket::IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr, size_t datalen) {
   pkt.writeData((size_t)26, &s_addr, (size_t)4);
   pkt.writeData((size_t)30, &d_addr, (size_t)4);
+  pkt.writeData((size_t)16, &datalen, (size_t)2);
 }
 
 void MyPacket::TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip, 
