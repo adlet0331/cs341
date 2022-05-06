@@ -449,7 +449,7 @@ void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * 
 
   MyPacket newpacket{size_t(54 + addrlen)};
   newpacket.IPAddrWrite(client_ip, server_ip);
-  newpacket.TCPHeadWrite(client_ip, server_ip, client_port, server_port, seqnum, acknum, 0b010000, addr, (size_t)addrlen);
+  newpacket.TCPHeadWrite(client_ip, server_ip, client_port, server_port, seqnum, acknum, 0b010000, addr, addrlen);
   newpacket.syscallUUID = syscallUUID;
 
   currEstabSocket->SEQ = seqnum + addrlen;
@@ -717,7 +717,7 @@ void MyPacket::TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip,
   window = htons(window);
   this->pkt.writeData((size_t)48, &window, (size_t)2);
   
-  this->pkt.writeData((size_t)54, data_addr, (size_t)data_size);
+  this->pkt.writeData((size_t)54, data_addr, data_size);
 
   uint16_t checkSum = this->makechecksum(source_ip, dest_ip, (size_t)20 + data_size);
   checkSum = htons(checkSum);
@@ -772,12 +772,10 @@ uint16_t MyPacket::flag() {
 }
 
 size_t MyPacket::getdatasize() {
-  uint16_t ret;
+  size_t ret;
   this->pkt.readData((size_t)16, &ret, (size_t)2);
 
-  ret;
-
-  ret = (ntohs(ret)) - (size_t)40;
+  ret = (size_t)(ntohs(ret)) - (size_t)40;
 
   return ret;
 }
