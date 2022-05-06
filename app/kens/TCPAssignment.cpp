@@ -621,7 +621,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
               }
 
             
-              MyPacket ackPacket((size_t)52);
+              MyPacket ackPacket((size_t)54);
 
               ackPacket.TCPHeadWrite(destination_ip,source_ip,destination_port,source_port, 
                 ACKNum, ntohl(htonl(SEQNum)+(uint32_t)datasize), 0b010010, 0, 0);
@@ -702,6 +702,8 @@ void MyPacket::IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr) {
 
 void MyPacket::TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip, 
     uint16_t source_port, uint16_t dest_port, uint32_t SeqNum, uint32_t ACKNum, uint16_t flag, void * data_addr, size_t data_size) {
+  datasize = data_size;
+
   source_port = htons(source_port);
   this->pkt.writeData((size_t)34, &source_port, (size_t)2);
   dest_port = htons(dest_port);
