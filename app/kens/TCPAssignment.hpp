@@ -143,9 +143,11 @@ private:
   map<socket_data::StatusKey, socket_data::StatusVar> SocketStatusMap;
   map<socket_data::StatusKey, void*> SocketReceiveBufferMap;
   socket_data::BufferQueueMap SocketSendBufferMap;
+
   int SenderBufferSize = 10;
   uint32_t RTT = (uint32_t) 1e10;
   list<UUID> SyscallStacks;
+  list<pair<UUID, SystemCallParameter>> SyscallStacks;
 
 public:
   TCPAssignment(Host &host);

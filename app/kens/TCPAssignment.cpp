@@ -35,7 +35,7 @@ TCPAssignment::~TCPAssignment() {}
 void TCPAssignment::initialize() {
   for(auto iter = SyscallStacks.begin(); iter!= SyscallStacks.end();iter++)
   {
-    this->returnSystemCall(*iter, 0);
+    this->returnSystemCall((*iter).first, 0);
   }
 }
 
@@ -45,7 +45,7 @@ void TCPAssignment::finalize() {
 
 void TCPAssignment::systemCallback(UUID syscallUUID, int pid,
                                    const SystemCallParameter &param) {
-  SyscallStacks.push_back(syscallUUID);
+  SyscallStacks.push_back(make_pair(syscallUUID, param));
 
   switch (param.syscallNumber) {
     case SOCKET:
@@ -691,7 +691,7 @@ void TCPAssignment::returnSystemCallCustom(UUID systemCall, int val) {
   
   for(auto iter = SyscallStacks.begin(); iter!= SyscallStacks.end();iter++)
   {
-    if(systemCall == *iter){
+    if(systemCall == (*iter).first){
       SyscallStacks.erase(iter);
       break;
     }
