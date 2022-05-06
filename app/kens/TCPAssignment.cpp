@@ -431,8 +431,8 @@ void TCPAssignment::trigger_read(int socketfd, int pid){
   memcpy(newbuffer, (receivebuffer + addrlen), newBufferDataSize);
 
   SocketReceiveBufferMap[make_pair(socketfd, pid)] = make_pair(newbuffer,newBufferDataSize);
-
-  free(buffer);
+  SocketReadMap.erase(make_pair(socketfd, pid));
+  free(receivebuffer);
 
   this->returnSystemCallCustom(syscallUUID,addrlen);
 
@@ -504,7 +504,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   in_addr_t source_ip = receivedpacket.source_ip();
   uint16_t source_port = receivedpacket.source_port();
 
-  uint16_t datasize = receivedpacket.getdatasize();
+  size_t datasize = receivedpacket.getdatasize();
   uint32_t ACKNum = receivedpacket.ACKNum();
   uint32_t SEQNum = receivedpacket.SeqNum();
 
@@ -655,7 +655,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
               MyPacket ackPacket((size_t)54);
 
               ackPacket.TCPHeadWrite(destination_ip,source_ip,destination_port,source_port, 
-                ACKNum, ntohl(htonl(SEQNum)+(uint32_t)datasize), 0b010010, 0, 0);
+                ACKNum, ((SEQNum)+(uint32_t)datasize), 0b010000, 0, 0);
 
               sendPacket("IPv4", std::move(ackPacket.pkt));
             }
