@@ -23,8 +23,11 @@ namespace E {
 class MyPacket {
 public:
   Packet pkt;
-  MyPacket(size_t in_size): pkt{Packet(in_size)} {}
-  MyPacket(Packet packet): pkt{packet} {}
+  bool isSent;
+  UUID syscallUUID;
+  socklen_t addrlen;
+  MyPacket(size_t in_size): pkt{Packet(in_size)}, isSent{false} {}
+  MyPacket(Packet packet): pkt{packet}, isSent{false}  {}
   void IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr);
   void TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip, uint16_t source_port, uint16_t dest_port, uint32_t SeqNum, uint32_t AckNum, uint16_t flag, void * data_addr, size_t data_size); 
   in_addr_t source_ip();
@@ -51,14 +54,14 @@ public:
   using StatusKey = pair<SocketFD, ProcessID>;
   using WaitingKey = pair<UUID,struct sockaddr *>;
   
-  using BufferQueue = queue<MyPacket>;
+  using BufferQueue = list<MyPacket>;
   using BufferQueueMap = map<socket_data::StatusKey, BufferQueue>;
   struct BufferData{
+    bool isSender;
     SocketFD sockfd;
     ProcessID pid;
     uint32_t ACK;
-    bool isSender;
-    BufferData(int fd, int pid, uint32_t ack, bool is): sockfd{fd}, pid{pid}, ACK{ack}, isSender{is} {};
+    BufferData(bool is, int fd, int pid, uint32_t ack): isSender{is}, sockfd{fd}, pid{pid}, ACK{ack} {};
   };
   using BufferDataMap = map<socket_data::StatusKey, BufferData>;
 
@@ -139,7 +142,8 @@ private:
   virtual void timerCallback(std::any payload) final;
   map<socket_data::StatusKey, socket_data::StatusVar> SocketStatusMap;
   map<socket_data::StatusKey, MyPacket> SocketReceiveBufferMap;
-  map<socket_data::StatusKey, queue<MyPacket>> SocketSendBufferMap;
+  socket_data::BufferQueueMap SocketSendBufferMap;
+  int SenderBufferSize = 1;
   list<UUID> SyscallStacks;
 
 public:
@@ -171,6 +175,8 @@ private:
   void syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
   void syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
   void syscall_read(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen);
+  void push_and_trigger(int pid, int sockfd, MyPacket packet);
+  void trigger_sendqueue(int pid, int sockfd);
   void syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen);
   void returnSystemCallCustom(UUID syscallUUID, int var);
 };
