@@ -39,7 +39,9 @@ void TCPAssignment::initialize() {
   }
 }
 
-void TCPAssignment::finalize() {}
+void TCPAssignment::finalize() {
+  // 끝내면서 리스브 버퍼에 malloc 한 데이터 free 해줘야함
+}
 
 void TCPAssignment::systemCallback(UUID syscallUUID, int pid,
                                    const SystemCallParameter &param) {
@@ -404,7 +406,8 @@ void TCPAssignment::catchAccept(int listeningfd, int processid){
 }
 
 void TCPAssignment::syscall_read(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen){
-  
+  this->returnSystemCallCustom(syscallUUID, 0);
+  return;
 }
 
 void TCPAssignment::trigger_sendqueue(int sockfd, int pid){
@@ -412,13 +415,14 @@ void TCPAssignment::trigger_sendqueue(int sockfd, int pid){
   
   int index = 0;
   for(MyPacket& mpkt:send_queue){
-    if (index >= SenderBufferSize) break;
+    // 윈도우 사이즈 이상일 때 바로 리턴
+    if (index >= SenderBufferSize) return;
 
     uint32_t ackNum = mpkt.ACKNum();
 
     if (!mpkt.isSent){
       sendPacket("IPv4", std::move(mpkt.pkt));
-      this->returnSystemCallCustom(mpkt.syscallUUID, mpkt.addrlen);
+      this->returnSystemCallCustom(mpkt.syscallUUID, mpkt.size());
 
       mpkt.isSent = true;
       any payload = socket_data::BufferData(true, sockfd, pid, ackNum);
@@ -432,7 +436,7 @@ void TCPAssignment::trigger_sendqueue(int sockfd, int pid){
 
 void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen){
   // Establish 된 socket_data를 가져옴
-  printf("Write%d\n", (int)syscallUUID);
+  //printf("Write%d\n", (int)syscallUUID);
   struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
   if (currEstabSocket == nullptr) this->returnSystemCallCustom(syscallUUID, -1);
 
@@ -445,9 +449,8 @@ void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * 
 
   MyPacket newpacket{size_t(54 + addrlen)};
   newpacket.IPAddrWrite(client_ip, server_ip);
-  newpacket.TCPHeadWrite(client_ip, server_ip, client_port, server_port, seqnum, acknum, 0b010000, addr, addrlen);
+  newpacket.TCPHeadWrite(client_ip, server_ip, client_port, server_port, seqnum, acknum, 0b010000, addr, (size_t)addrlen);
   newpacket.syscallUUID = syscallUUID;
-  newpacket.addrlen = addrlen;
 
   currEstabSocket->SEQ = seqnum + addrlen;
 
@@ -473,7 +476,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   in_addr_t source_ip = receivedpacket.source_ip();
   uint16_t source_port = receivedpacket.source_port();
 
-  uint16_t packetsize = receivedpacket.size();
+  uint16_t datasize = receivedpacket.size();
   uint32_t ACKNum = receivedpacket.ACKNum();
   uint32_t SEQNum = receivedpacket.SeqNum();
 
@@ -602,21 +605,36 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             else if (currPacketType != PACKET_TYPE_ACK) return;
             
             // Write Send 한 패킷
-            // if (packetsize !=0) {
-            //   SocketReceiveBufferMap[make_pair(socketfd,processid)] = receivedpacket;
+            if (datasize !=0) {
+              if (SocketReceiveBufferMap.count(make_pair(socketfd, processid)) == (size_t)0) {
+                //버퍼가 없을때(이전에 write 패킷을 받은 적이 없을 때)
+                SocketReceiveBufferMap[make_pair(socketfd, processid)] = calloc((size_t)2097152, sizeof(char));
+                void* receiveBuffer = SocketReceiveBufferMap[make_pair(socketfd, processid)];
 
-            //   Packet pkt((size_t)52);
-            //   MyPacket ackPacket(pkt);
+                receivedpacket.pkt.readData((size_t)54, receiveBuffer,datasize);
 
-            //   ackPacket.TCPHeadWrite(destination_ip,source_ip,destination_port,source_port, 
-            //     ACKNum, ntohl(htonl(SEQNum)+(uint32_t)packetsize), 0b010010, 0, 0);
+              }
+              else {
+                //버퍼가 있을때(이미 write 패킷을 받은 적이 있어서 block 된 리드가 있을리 없다.)
+                void* receiveBuffer = SocketReceiveBufferMap[make_pair(socketfd, processid)];
+                receivedpacket.pkt.readData((size_t)54, receiveBuffer,datasize);
+              }
 
-            //   sendPacket("IPv4", std::move(ackPacket.pkt));
-            // }
+            
+              MyPacket ackPacket((size_t)52);
+
+              ackPacket.TCPHeadWrite(destination_ip,source_ip,destination_port,source_port, 
+                ACKNum, ntohl(htonl(SEQNum)+(uint32_t)datasize), 0b010010, 0, 0);
+
+              sendPacket("IPv4", std::move(ackPacket.pkt));
+            
+
+            }
           
             // Write Send 한 후 돌아온 ACK 패킷
             if (currEstabsock.ACK == receivedpacket.SeqNum()){
               SocketSendBufferMap[make_pair(socketfd, processid)].pop_front();
+              trigger_sendqueue(socketfd,processid);
             }
 
 
@@ -657,7 +675,7 @@ void TCPAssignment::timerCallback(any payload) {
     if (myACK == current_ackNum){
       sendPacket("IPv4", std::move(myPacket.pkt));
 
-      this->returnSystemCallCustom(myPacket.syscallUUID, myPacket.addrlen);
+      this->returnSystemCallCustom(myPacket.syscallUUID, myPacket.size());
 
       addTimer(payload, 0.10f);      
     }
@@ -699,7 +717,7 @@ void MyPacket::TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip,
   window = htons(window);
   this->pkt.writeData((size_t)48, &window, (size_t)2);
   
-  this->pkt.writeData((size_t)54, data_addr, data_size);
+  this->pkt.writeData((size_t)54, data_addr, (size_t)data_size);
 
   uint16_t checkSum = this->makechecksum(source_ip, dest_ip, (size_t)20 + data_size);
   checkSum = htons(checkSum);

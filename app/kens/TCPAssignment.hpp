@@ -25,7 +25,6 @@ public:
   Packet pkt;
   bool isSent;
   UUID syscallUUID;
-  socklen_t addrlen;
   MyPacket(size_t in_size): pkt{Packet(in_size)}, isSent{false} {}
   MyPacket(Packet packet): pkt{packet}, isSent{false}  {}
   void IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr);
@@ -141,7 +140,7 @@ class TCPAssignment : public HostModule,
 private:
   virtual void timerCallback(std::any payload) final;
   map<socket_data::StatusKey, socket_data::StatusVar> SocketStatusMap;
-  map<socket_data::StatusKey, MyPacket> SocketReceiveBufferMap;
+  map<socket_data::StatusKey, void*> SocketReceiveBufferMap;
   socket_data::BufferQueueMap SocketSendBufferMap;
   int SenderBufferSize = 1;
   list<UUID> SyscallStacks;
