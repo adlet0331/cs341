@@ -24,6 +24,7 @@ class MyPacket {
 public:
   Packet pkt;
   bool isSent;
+  size_t datasize;
   UUID syscallUUID;
   MyPacket(size_t in_size): pkt{Packet(in_size)}, isSent{false} {}
   MyPacket(Packet packet): pkt{packet}, isSent{false}  {}
@@ -37,7 +38,7 @@ public:
   uint32_t ACKNum();
   uint16_t flag(); 
   bool checksum();
-  uint16_t size();
+  size_t getdatasize();
   uint16_t makechecksum(uint32_t source_ip, uint32_t dest_ip, size_t length);
 
   void SeqNumAdd(int n);
@@ -173,10 +174,10 @@ private:
   void syscall_bind(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen);
   void syscall_getsockname(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
   void syscall_getpeername(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t * addrlen);
-  void syscall_read(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen);
+  void syscall_read(UUID syscallUUID, int pid, int sockfd, void * addr, size_t addrlen);
   void push_and_trigger(int pid, int sockfd, MyPacket packet);
   void trigger_sendqueue(int pid, int sockfd);
-  void syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen);
+  void syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, size_t addrlen);
   void returnSystemCallCustom(UUID syscallUUID, int var);
 };
 

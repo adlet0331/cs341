@@ -59,12 +59,12 @@ void TCPAssignment::systemCallback(UUID syscallUUID, int pid,
     case READ:
       this->syscall_read(syscallUUID, pid, get<int>(param.params[0]),
                          get<void *>(param.params[1]),
-                         (socklen_t)get<int>(param.params[2]));
+                         (size_t)get<int>(param.params[2]));
       break;
     case WRITE:
       this->syscall_write(syscallUUID, pid, get<int>(param.params[0]),
                           get<void *>(param.params[1]),
-                          (socklen_t)get<int>(param.params[2]));
+                          (size_t)get<int>(param.params[2]));
       break;
     case CONNECT: {
       this->syscall_connect(
@@ -405,7 +405,7 @@ void TCPAssignment::catchAccept(int listeningfd, int processid){
   return;
 }
 
-void TCPAssignment::syscall_read(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen){
+void TCPAssignment::syscall_read(UUID syscallUUID, int pid, int sockfd, void * addr, size_t addrlen){
   this->returnSystemCallCustom(syscallUUID, 0);
   return;
 }
@@ -422,7 +422,7 @@ void TCPAssignment::trigger_sendqueue(int sockfd, int pid){
 
     if (!mpkt.isSent){
       sendPacket("IPv4", std::move(mpkt.pkt));
-      this->returnSystemCallCustom(mpkt.syscallUUID, mpkt.size());
+      this->returnSystemCallCustom(mpkt.syscallUUID, mpkt.datasize);
 
       mpkt.isSent = true;
       any payload = socket_data::BufferData(true, sockfd, pid, ackNum);
@@ -434,7 +434,7 @@ void TCPAssignment::trigger_sendqueue(int sockfd, int pid){
   return;
 }
 
-void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, socklen_t addrlen){
+void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, size_t addrlen){
   // Establish 된 socket_data를 가져옴
   //printf("Write%d\n", (int)syscallUUID);
   struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
@@ -476,7 +476,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   in_addr_t source_ip = receivedpacket.source_ip();
   uint16_t source_port = receivedpacket.source_port();
 
-  uint16_t datasize = receivedpacket.size();
+  uint16_t datasize = receivedpacket.getdatasize();
   uint32_t ACKNum = receivedpacket.ACKNum();
   uint32_t SEQNum = receivedpacket.SeqNum();
 
@@ -675,7 +675,7 @@ void TCPAssignment::timerCallback(any payload) {
     if (myACK == current_ackNum){
       sendPacket("IPv4", std::move(myPacket.pkt));
 
-      this->returnSystemCallCustom(myPacket.syscallUUID, myPacket.size());
+      this->returnSystemCallCustom(myPacket.syscallUUID, myPacket.datasize);
 
       addTimer(payload, 0.10f);      
     }
@@ -771,10 +771,14 @@ uint16_t MyPacket::flag() {
   return ret;
 }
 
-uint16_t MyPacket::size() {
+size_t MyPacket::getdatasize() {
   uint16_t ret;
   this->pkt.readData((size_t)16, &ret, (size_t)2);
-  ret = (ntohl(ret)) - (size_t)40;
+
+  ret;
+
+  ret = (ntohs(ret)) - (size_t)40;
+
   return ret;
 }
 
@@ -798,7 +802,7 @@ bool MyPacket::checksum() {
   checksum = (ntohl(checksum));
   uint32_t source_ip = this->source_ip();
   uint32_t dest_ip = this->dest_ip();
-  uint16_t data_size = this->size();
+  uint16_t data_size = this->getdatasize();
 
   uint16_t realchecksum = this->makechecksum(source_ip, dest_ip, (size_t)20 + data_size);
 
