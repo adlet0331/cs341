@@ -511,6 +511,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   size_t datasize = receivedpacket.getdatasize();
   uint32_t ACKNum = receivedpacket.ACKNum();
   uint32_t SEQNum = receivedpacket.SeqNum();
+  UUID receivedSyscall = receivedpacket.syscallUUID;
 
   if (!(receivedpacket.checksum()))
      return;
@@ -530,7 +531,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
     visit(
       overloaded{
         [&](socket_data::ListeningStatus currListeningsock) {
-          // Client -> Server. 1번째.  Server 입장
+          // Client -> Server. 1번째 Connect 요청 받았을 때
           if (currPacketType != PACKET_TYPE_SYN) return;
 
           // 순회하면서 SocketStatusMap Pointer 가져오기
@@ -564,12 +565,15 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             
             newpacket.IPAddrWrite(destination_ip, source_ip, 40);
             newpacket.TCPHeadWrite(source_ip, destination_ip, destination_port, source_port, randSeqNum, SEQNum + 1, 0b010010, 0, 0);
+            newpacket.syscallUUID = receivedSyscall;
 
             sendPacket("IPv4", std::move(newpacket.pkt));
-
+            //send_unreliable_packet(socketfd, processid, newpacket);
+            
             //SynRcvd 상태인 socket_data 생성해서 넣어주기
             int newsockfd = createFileDescriptor(processid);
             SocketStatusMap[make_pair(newsockfd, processid)] = socket_data::SynRcvdStatus{uuid, processid, socketfd, destination_ip, destination_port, source_ip, source_port, randSeqNum};
+            return;
           }
         },
         [&](socket_data::SysSentStatus currSysSentsock) {
@@ -594,9 +598,12 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             
             newpacket.IPAddrWrite(destination_ip, source_ip, 40);
             newpacket.TCPHeadWrite(destination_ip, source_ip, destination_port, source_port, newSEQNum, newACKNum, 0b010000, 0, 0);
+            newpacket.syscallUUID = receivedSyscall;
 
             //EstabStatus 상태인 socket_data 생성해서 넣어주기
             SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port, newSEQNum, newACKNum};
+
+            received_unreliable_packet(socketfd, processid, receivedpacket, 1);
 
             this->sendPacket("IPv4", std::move(newpacket.pkt));
 
@@ -679,6 +686,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
               ackPacket.IPAddrWrite(destination_ip, source_ip, 40);
               ackPacket.TCPHeadWrite(destination_ip,source_ip,destination_port,source_port, 
                 ACKNum, SEQNum + datasize, 0b010000, 0, 0);
+              ackPacket.syscallUUID = receivedSyscall;
 
               sendPacket("IPv4", std::move(ackPacket.pkt));
             }
@@ -726,6 +734,32 @@ void TCPAssignment::send_unreliable_packet(int sockfd, int pid, MyPacket myPacke
   return;
 }
 
+void TCPAssignment::received_unreliable_packet(int sockfd, int pid, MyPacket receivedPacket, int packetFlag){
+  printf("R");
+  socket_data::BufferQueue& await_packet_list = SocketPacketAwaitingMap[make_pair(sockfd, pid)];
+
+  uint32_t receivedackNum = receivedPacket.ACKNum();
+  uint32_t receivedseqNum = receivedPacket.SeqNum();
+  Time currentTime = getCurrentTime();
+
+  socket_data::BufferQueue::iterator it = await_packet_list.begin();
+
+  while(it != await_packet_list.end()){
+    MyPacket awaitpacket = *it;
+    uint32_t awaitackNum = awaitpacket.ACKNum();
+    uint32_t awaitseqNum = awaitpacket.SeqNum();
+
+    if (packetFlag == 1 && awaitseqNum + 1 == receivedackNum){
+      await_packet_list.erase(it++);
+      return;
+    }
+    else{
+      it++;
+    }
+  }
+  return;
+}
+
 void TCPAssignment::UpdateTOI(Time sendTime){
   Time SampleRTT = getCurrentTime() - sendTime;
 
@@ -765,12 +799,13 @@ void TCPAssignment::timerCallback(any payload) {
       if (myACK == revisedackNum){
         sendPacket("IPv4", myPacket.pkt);
 
+        //if (myPacket.isSent) UpdateTOI(timerStartedTime);
+
         if (!myPacket.isSent){
           this->returnSystemCallCustom(myPacket.syscallUUID, myPacket.getdatasize());
           myPacket.isSent = true;
         }
 
-        UpdateTOI(timerStartedTime);
         any newPayload = socket_data::BufferData(true, sockfd, pid, revisedackNum, revisedseqNum, getCurrentTime());
 
         addTimer(newPayload, EstimatedRTT + 4 * DevRTT);
@@ -796,7 +831,6 @@ void TCPAssignment::timerCallback(any payload) {
         //await_packet_list.erase(it++);
         this->sendPacket("IPv4", awaitpacket.pkt);
 
-        UpdateTOI(timerStartedTime);
         any newpayload = socket_data::BufferData(false, sockfd, pid, revisedackNum, revisedseqNum, getCurrentTime());
 
         addTimer(newpayload, EstimatedRTT + 4 * DevRTT);

@@ -188,6 +188,7 @@ private:
   void syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, size_t addrlen);
   void returnSystemCallCustom(UUID syscallUUID, int var);
   void send_unreliable_packet(int sockfd, int pid, MyPacket myPacket);
+  void received_unreliable_packet(int sockfd, int pid, MyPacket MyPacket, int packetFlag);
   void UpdateTOI(Time sendTime);
 };
 
