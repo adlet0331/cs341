@@ -455,7 +455,7 @@ void TCPAssignment::trigger_sendqueue(int sockfd, int pid){
 
     if (!mpkt.isSent){
       sendPacket("IPv4", std::move(mpkt.pkt));
-      this->returnSystemCallCustom(mpkt.syscallUUID, mpkt.datasize);
+      this->returnSystemCallCustom(mpkt.syscallUUID, mpkt.getdatasize());
 
       mpkt.isSent = true;
       any payload = socket_data::BufferData(true, sockfd, pid, ackNum, seqNum, getCurrentTime());
@@ -523,7 +523,6 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   else if (myPacketFlag == 0b010000) currPacketType = PACKET_TYPE_ACK;
   else if (myPacketFlag == 0b010001) currPacketType = PACKET_TYPE_FINISH;
 
-  bool isfinded = false;
   for(auto iter = SocketStatusMap.begin(); iter != SocketStatusMap.end(); iter++){
     socket_data::SocketFD socketfd = get<0>(iter->first);
     socket_data::ProcessID processid = get<1>(iter->first);
@@ -689,25 +688,14 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
               if (send_queue.empty()) return;
 
               MyPacket& frontPacket = send_queue.front();
+              uint16_t frontsize = frontPacket.getdatasize();
               uint32_t receivedSEQ = receivedpacket.ACKNum();
-              uint32_t receivedSize = receivedpacket.getdatasize();
               
               uint32_t queuedSEQ = frontPacket.SeqNum();
 
-              if (queuedSEQ + receivedSize != receivedSEQ) return;
+              if (queuedSEQ + frontsize != receivedSEQ) return;
               send_queue.pop_front();
               trigger_sendqueue(socketfd, processid);
-              // socket_data::StatusKey pop_key = make_pair(-1, -1);
-
-              // for(auto pair:*AckWaitingMap){
-              //   int pairsockfd = pair.first.first;
-              //   int pairpid = pair.first.second;
-              //   MyPacket mypck = pair.second;
-
-              //   if (pairsockfd == socketfd && pairpid == processid && SEQNum == mypck.SeqNum()){
-              //     pop_key = make_pair(pairsockfd, pairpid);
-              //   }
-              // }
             }
             return;
         },
@@ -717,7 +705,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
         },
       }, iter->second);
-      if (isfinded) return;
+      return;
   }
 }
 
@@ -778,7 +766,7 @@ void TCPAssignment::timerCallback(any payload) {
         sendPacket("IPv4", myPacket.pkt);
 
         if (!myPacket.isSent){
-          this->returnSystemCallCustom(myPacket.syscallUUID, myPacket.datasize);
+          this->returnSystemCallCustom(myPacket.syscallUUID, myPacket.getdatasize());
           myPacket.isSent = true;
         }
 
@@ -835,16 +823,15 @@ void TCPAssignment::returnSystemCallCustom(UUID systemCall, int val) {
   this->returnSystemCall(systemCall, val);
 }
 
-void MyPacket::IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr, size_t datalen) {
+void MyPacket::IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr, uint16_t datalen) {
   pkt.writeData((size_t)26, &s_addr, (size_t)4);
   pkt.writeData((size_t)30, &d_addr, (size_t)4);
+  datalen = htons(datalen);
   pkt.writeData((size_t)16, &datalen, (size_t)2);
 }
 
 void MyPacket::TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip, 
     uint16_t source_port, uint16_t dest_port, uint32_t SeqNum, uint32_t ACKNum, uint16_t flag, void * data_addr, size_t data_size) {
-  datasize = data_size;
-
   source_port = htons(source_port);
   this->pkt.writeData((size_t)34, &source_port, (size_t)2);
   dest_port = htons(dest_port);
@@ -914,11 +901,11 @@ uint16_t MyPacket::flag() {
   return ret;
 }
 
-size_t MyPacket::getdatasize() {
-  size_t ret;
+uint16_t MyPacket::getdatasize() {
+  uint16_t ret;
   this->pkt.readData((size_t)16, &ret, (size_t)2);
 
-  ret = (size_t)(ntohs(ret)) - (size_t)40;
+  ret = (uint16_t)(ntohs(ret)) - (uint16_t)40;
 
   return ret;
 }
@@ -943,7 +930,7 @@ bool MyPacket::checksum() {
   checksum = (ntohs(checksum));
   uint32_t source_ip = this->source_ip();
   uint32_t dest_ip = this->dest_ip();
-  size_t data_size = this->getdatasize();
+  size_t data_size = (size_t)this->getdatasize();
 
   uint16_t realchecksum = this->makechecksum(source_ip, dest_ip, (size_t)20 + data_size);
 

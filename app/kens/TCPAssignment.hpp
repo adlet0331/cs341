@@ -24,11 +24,10 @@ class MyPacket {
 public:
   Packet pkt;
   bool isSent;
-  size_t datasize;
   UUID syscallUUID;
   MyPacket(size_t in_size): pkt{Packet(in_size)}, isSent{false} {}
   MyPacket(Packet packet): pkt{packet}, isSent{false}  {}
-  void IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr, size_t datalen);
+  void IPAddrWrite(in_addr_t s_addr, in_addr_t d_addr, uint16_t datalen);
   void TCPHeadWrite(in_addr_t source_ip, in_addr_t dest_ip, uint16_t source_port, uint16_t dest_port, uint32_t SeqNum, uint32_t AckNum, uint16_t flag, void * data_addr, size_t data_size); 
   in_addr_t source_ip();
   in_addr_t dest_ip();
@@ -38,7 +37,7 @@ public:
   uint32_t ACKNum();
   uint16_t flag(); 
   bool checksum();
-  size_t getdatasize();
+  uint16_t getdatasize();
   uint16_t makechecksum(uint32_t source_ip, uint32_t dest_ip, size_t length);
 
   void SeqNumAdd(int n);
