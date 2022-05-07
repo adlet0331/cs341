@@ -61,8 +61,9 @@ public:
     SocketFD sockfd;
     ProcessID pid;
     uint32_t ACK;
-    Time time;
-    BufferData(bool is, int fd, int pid, uint32_t ack): isWriter{is}, sockfd{fd}, pid{pid}, ACK{ack} {};
+    uint32_t SEQ;
+    Time startTime;
+    BufferData(bool is, int fd, int pid, uint32_t ack, uint32_t seq, Time time): isWriter{is}, sockfd{fd}, pid{pid}, ACK{ack}, SEQ{seq}, startTime{time};
   };
   using BufferDataMap = map<socket_data::StatusKey, BufferData>;
 
