@@ -199,7 +199,7 @@ void TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struc
       }
     }
   }
-  printf("PRINT RANDOM PORT: %d\n", client_port);
+  printf("PRINT CLIENT RANDOM PORT: %d\n", client_port);
 
   //랜덤한 SeqNum 결정
   random_device rd;
@@ -403,7 +403,6 @@ void TCPAssignment::catchAccept(int listeningfd, int processid){
 
 void TCPAssignment::syscall_read(UUID syscallUUID, int pid, int socketfd, void * addr, size_t addrlen){ 
   // printf("syscall addrlen : %d \n", addrlen);
-  
   SocketReadMap[make_pair(socketfd,pid)] = (make_tuple(syscallUUID, addr, addrlen));
 
   if (SocketReceiveBufferMap.count(make_pair(socketfd, pid)) != (size_t)0 )
@@ -435,7 +434,6 @@ void TCPAssignment::trigger_read(int socketfd, int pid){
   SocketReceiveBufferMap[make_pair(socketfd, pid)] = make_pair(newbuffer, newBufferDataSize);
   SocketReadMap.erase(make_pair(socketfd, pid));
   free(receivebuffer);
-  // printf("addrlen: %d \n", addrlen);
   this->returnSystemCallCustom(syscallUUID,addrlen);
 
 }
@@ -466,7 +464,6 @@ void TCPAssignment::trigger_sendqueue(int sockfd, int pid){
 
 void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, size_t addrlen){
   // Establish 된 socket_data를 가져옴
-  //printf("Write%d\n", (int)syscallUUID);
   struct socket_data::EstabStatus* currEstabSocket = get_if<socket_data::EstabStatus>(&SocketStatusMap.find(make_pair(sockfd, pid))->second);
   if (currEstabSocket == nullptr) this->returnSystemCallCustom(syscallUUID, -1);
 
@@ -641,7 +638,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
                 memcpy(buffer, receivebuffer, bufferDataSize);
 
-                printf("!D@!Daddrlen: %d \n", addrlen);
+                printf("FINISH FLAG: %luWE\n", addrlen);
 
                 SocketReadMap.erase(make_pair(socketfd, processid));
                 SocketReceiveBufferMap.erase(make_pair(socketfd, processid));
