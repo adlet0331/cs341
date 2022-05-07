@@ -57,11 +57,12 @@ public:
   using BufferQueue = list<MyPacket>;
   using BufferQueueMap = map<socket_data::StatusKey, BufferQueue>;
   struct BufferData{
-    bool isSender;
+    bool isWriter;
     SocketFD sockfd;
     ProcessID pid;
     uint32_t ACK;
-    BufferData(bool is, int fd, int pid, uint32_t ack): isSender{is}, sockfd{fd}, pid{pid}, ACK{ack} {};
+    Time time;
+    BufferData(bool is, int fd, int pid, uint32_t ack): isWriter{is}, sockfd{fd}, pid{pid}, ACK{ack} {};
   };
   using BufferDataMap = map<socket_data::StatusKey, BufferData>;
 

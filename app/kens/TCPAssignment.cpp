@@ -510,6 +510,9 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   uint32_t ACKNum = receivedpacket.ACKNum();
   uint32_t SEQNum = receivedpacket.SeqNum();
 
+  if (!(receivedpacket.checksum()))
+     return;
+
   // 받은 패킷의 상태 확인 -> 3-way handshake 중 몇 번째 패킷인지 SYNbit 와 ACKbit로 판별
   uint16_t myPacketFlag = receivedpacket.flag() & 0b010011;
   int currPacketType = PACKET_TYPE_NOT_DECLARED;
@@ -702,11 +705,11 @@ void TCPAssignment::timerCallback(any payload) {
   socket_data::BufferData payloadData = any_cast<socket_data::BufferData>(payload);
   int sockfd = payloadData.sockfd;
   int pid = payloadData.pid;
-  bool isSender = payloadData.isSender;
+  bool isWriter = payloadData.isWriter;
   socket_data::StatusKey key = make_pair(sockfd, pid);
   uint32_t current_ackNum = payloadData.ACK;
   // syscall_write에서 사용
-  if (isSender){
+  if (isWriter){
     const socket_data::BufferQueue& send_queue = SocketSendBufferMap[key];
     int index = 0;
     // 앞에서 부터 순회하면서 ackNum 대소 체크
@@ -856,10 +859,10 @@ void MyPacket::SeqNumAdd(int n) {
 bool MyPacket::checksum() {
   uint16_t checksum;
   this->pkt.readData((size_t)50, &checksum, (size_t)2);
-  checksum = (ntohl(checksum));
+  checksum = (ntohs(checksum));
   uint32_t source_ip = this->source_ip();
   uint32_t dest_ip = this->dest_ip();
-  uint16_t data_size = this->getdatasize();
+  size_t data_size = this->getdatasize();
 
   uint16_t realchecksum = this->makechecksum(source_ip, dest_ip, (size_t)20 + data_size);
 
