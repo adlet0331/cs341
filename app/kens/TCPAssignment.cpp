@@ -214,6 +214,7 @@ void TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struc
 
   fstPacket.IPAddrWrite(client_ip, server_ip, 40);
   fstPacket.TCPHeadWrite(client_ip, server_ip, client_port, server_port, randSeqNum, 0, 0b10, 0, 0);
+  fstPacket.syscallUUID = syscallUUID;
 
   // Status Change Listen -> SysSent 
   SocketStatusMap[make_pair(sockfd, pid)] = socket_data::SysSentStatus(syscallUUID, pid, server_ip, server_port, client_ip, client_port);
@@ -713,7 +714,6 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
         },
       }, iter->second);
-      return;
   }
 }
 
