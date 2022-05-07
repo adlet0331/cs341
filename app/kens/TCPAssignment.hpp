@@ -63,7 +63,7 @@ public:
     uint32_t ACK;
     uint32_t SEQ;
     Time startTime;
-    BufferData(bool is, int fd, int pid, uint32_t ack, uint32_t seq, Time time): isWriter{is}, sockfd{fd}, pid{pid}, ACK{ack}, SEQ{seq}, startTime{time};
+    BufferData(bool is, int fd, int pid, uint32_t ack, uint32_t seq, Time time): isWriter{is}, sockfd{fd}, pid{pid}, ACK{ack}, SEQ{seq}, startTime{time} {};
   };
   using BufferDataMap = map<socket_data::StatusKey, BufferData>;
 
@@ -146,10 +146,13 @@ private:
   map<socket_data::StatusKey, pair<void*, size_t>> SocketReceiveBufferMap;
   socket_data::BufferQueueMap SocketSendBufferMap;
   map<socket_data::StatusKey, tuple<UUID,void*,size_t>> SocketReadMap;
+  socket_data::BufferQueueMap SocketPacketAwaitingMap;
 
   int SenderBufferSize = 10;
-  uint32_t RTT = (uint32_t) 1e10;
   list<pair<UUID, SystemCallParameter>> SyscallStacks;
+
+  Time EstimatedRTT = (uint64_t) 1e8;
+  Time DevRTT = (uint64_t) 0;
 
 public:
   TCPAssignment(Host &host);
@@ -185,6 +188,8 @@ private:
   void trigger_read(int sockfd, int pid);
   void syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, size_t addrlen);
   void returnSystemCallCustom(UUID syscallUUID, int var);
+  void send_unreliable_packet(int sockfd, int pid, MyPacket myPacket);
+  void UpdateTOI(Time sendTime);
 };
 
 class TCPAssignmentProvider {

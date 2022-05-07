@@ -41,6 +41,9 @@ void TCPAssignment::initialize() {
 
 void TCPAssignment::finalize() {
   // 끝내면서 리스브 버퍼에 malloc 한 데이터 free 해줘야함
+  for(auto iter = SocketReceiveBufferMap.begin(); iter != SocketReceiveBufferMap.end(); ++iter) {
+    free(iter->second.first);
+  }
 }
 
 void TCPAssignment::systemCallback(UUID syscallUUID, int pid,
@@ -216,7 +219,7 @@ void TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struc
   SocketStatusMap[make_pair(sockfd, pid)] = socket_data::SysSentStatus(syscallUUID, pid, server_ip, server_port, client_ip, client_port);
 
   //패킷 Send
-  this->sendPacket("IPv4", std::move(fstPacket.pkt));
+  send_unreliable_packet(sockfd, pid, fstPacket);
 }
 
 void TCPAssignment::syscall_listen(UUID syscallUUID, int pid, int sockfd, int backlog){
@@ -447,14 +450,16 @@ void TCPAssignment::trigger_sendqueue(int sockfd, int pid){
     if (index >= SenderBufferSize) return;
 
     uint32_t ackNum = mpkt.SeqNum();
+    uint32_t seqNum = mpkt.ACKNum();
+    size_t packetSize = mpkt.getdatasize();
 
     if (!mpkt.isSent){
       sendPacket("IPv4", std::move(mpkt.pkt));
       this->returnSystemCallCustom(mpkt.syscallUUID, mpkt.datasize);
 
       mpkt.isSent = true;
-      any payload = socket_data::BufferData(true, sockfd, pid, ackNum);
-      addTimer(payload, RTT);
+      any payload = socket_data::BufferData(true, sockfd, pid, ackNum, seqNum, getCurrentTime());
+      addTimer(payload, EstimatedRTT + 4 * DevRTT);
     }
 
     index += 1;
@@ -569,7 +574,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           }
         },
         [&](socket_data::SysSentStatus currSysSentsock) {
-          // Server -> Client. 2번째
+          // Server -> Client. 2번째. Client 입장
           // SYNbit, Seq 넘버 확인.
           if (currPacketType != PACKET_TYPE_SYNACK) return;
           
@@ -603,7 +608,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           // Make New Socket Data Status: ESTAB
         },
         [&](socket_data::SynRcvdStatus currSynRcvdsock) {
-          // Client -> Server. 3번째
+          // Client -> Server. 3번째. Server 입장
           // ACKbit, ACKnum 확인. ESTAB
           if (currPacketType != PACKET_TYPE_ACK) return;
           
@@ -679,13 +684,32 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
               sendPacket("IPv4", std::move(ackPacket.pkt));
             }
             // Write Send 한 후 돌아온 ACK 패킷
-            else if (currEstabsock.ACK == receivedpacket.SeqNum()){
-              SocketSendBufferMap[make_pair(socketfd, processid)].pop_front();
-              trigger_sendqueue(socketfd,processid);
+            else {
+              socket_data::BufferQueue& send_queue = SocketSendBufferMap[make_pair(socketfd, processid)];
+              if (send_queue.empty()) return;
+
+              MyPacket& frontPacket = send_queue.front();
+              uint32_t receivedSEQ = receivedpacket.ACKNum();
+              uint32_t receivedSize = receivedpacket.getdatasize();
+              
+              uint32_t queuedSEQ = frontPacket.SeqNum();
+
+              if (queuedSEQ + receivedSize != receivedSEQ) return;
+              send_queue.pop_front();
+              trigger_sendqueue(socketfd, processid);
+              // socket_data::StatusKey pop_key = make_pair(-1, -1);
+
+              // for(auto pair:*AckWaitingMap){
+              //   int pairsockfd = pair.first.first;
+              //   int pairpid = pair.first.second;
+              //   MyPacket mypck = pair.second;
+
+              //   if (pairsockfd == socketfd && pairpid == processid && SEQNum == mypck.SeqNum()){
+              //     pop_key = make_pair(pairsockfd, pairpid);
+              //   }
+              // }
             }
-            else return;
-
-
+            return;
         },
         [](auto sock_data) {
           // 위의 상태와 다른 경우. 에러처리
@@ -697,14 +721,45 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   }
 }
 
+void TCPAssignment::send_unreliable_packet(int sockfd, int pid, MyPacket myPacket) {
+  uint32_t ackNum = myPacket.ACKNum();
+  uint32_t seqNum = myPacket.SeqNum();
+  Time currentTime = getCurrentTime();
+
+  any payload = socket_data::BufferData(false, sockfd, pid, ackNum, seqNum, currentTime);
+  addTimer(payload, EstimatedRTT + 4 * DevRTT);
+
+  socket_data::BufferQueue& await_packet_list = SocketPacketAwaitingMap[make_pair(sockfd, pid)];
+
+  this->sendPacket("IPv4", myPacket.pkt);
+
+  await_packet_list.push_back(myPacket);
+
+  return;
+}
+
+void TCPAssignment::UpdateTOI(Time sendTime){
+  Time SampleRTT = getCurrentTime() - sendTime;
+
+  Time SampleEstimatedRTTVect;
+  if(SampleRTT > EstimatedRTT) SampleEstimatedRTTVect = SampleRTT - EstimatedRTT;
+  else SampleEstimatedRTTVect = EstimatedRTT - SampleRTT;
+
+  EstimatedRTT = 0.875 * EstimatedRTT +  0.125 * SampleRTT;
+  DevRTT = 0.75 * DevRTT + 0.25 * SampleEstimatedRTTVect;
+
+}
+
 void TCPAssignment::timerCallback(any payload) {
   // For Resending Packet When Time Out
   socket_data::BufferData payloadData = any_cast<socket_data::BufferData>(payload);
+  bool isWriter = payloadData.isWriter;
   int sockfd = payloadData.sockfd;
   int pid = payloadData.pid;
-  bool isWriter = payloadData.isWriter;
   socket_data::StatusKey key = make_pair(sockfd, pid);
-  uint32_t current_ackNum = payloadData.ACK;
+  uint32_t revisedackNum = payloadData.ACK;
+  uint32_t revisedseqNum = payloadData.SEQ;
+  Time timerStartedTime = payloadData.startTime;
   // syscall_write에서 사용
   if (isWriter){
     const socket_data::BufferQueue& send_queue = SocketSendBufferMap[key];
@@ -717,9 +772,9 @@ void TCPAssignment::timerCallback(any payload) {
 
       uint32_t myACK = myPacket.ACKNum();
 
-      if (myACK > current_ackNum) return;
+      if (myACK > revisedackNum) return;
 
-      if (myACK == current_ackNum){
+      if (myACK == revisedackNum){
         sendPacket("IPv4", myPacket.pkt);
 
         if (!myPacket.isSent){
@@ -727,14 +782,43 @@ void TCPAssignment::timerCallback(any payload) {
           myPacket.isSent = true;
         }
 
-        addTimer(payload, RTT);
+        UpdateTOI(timerStartedTime);
+        any newPayload = socket_data::BufferData(true, sockfd, pid, revisedackNum, revisedseqNum, getCurrentTime());
+
+        addTimer(newPayload, EstimatedRTT + 4 * DevRTT);
+        return;
       }
       index += 1;
     }
   }
-  //
+  // write 이외의 것들
   else{
+    socket_data::BufferQueue& await_queue = SocketPacketAwaitingMap[key];
+    int index = 0;
+    // SocketPacketAwaitingMap 있는지 없는지 확인.
+    socket_data::BufferQueue& await_packet_list = SocketPacketAwaitingMap[make_pair(sockfd, pid)];
+    socket_data::BufferQueue::iterator it = await_packet_list.begin();
+    // Find if resended Packet should be resended
+    while(it != await_packet_list.end()){
+      MyPacket awaitpacket = *it;
+      uint32_t awaitackNum = awaitpacket.ACKNum();
+      uint32_t awaitseqNum = awaitpacket.SeqNum();
 
+      if (awaitackNum == revisedackNum && awaitseqNum == revisedseqNum){
+        //await_packet_list.erase(it++);
+        this->sendPacket("IPv4", awaitpacket.pkt);
+
+        UpdateTOI(timerStartedTime);
+        any newpayload = socket_data::BufferData(false, sockfd, pid, revisedackNum, revisedseqNum, getCurrentTime());
+
+        addTimer(newpayload, EstimatedRTT + 4 * DevRTT);
+        return;
+      }
+      else{
+        it++;
+      }
+    }
+    return;
   }
   
 }
