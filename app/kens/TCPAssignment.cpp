@@ -657,7 +657,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
                 memcpy(buffer, receivebuffer, bufferDataSize);
 
-                printf("\n\nFINISH FLAG: %luWE\n", bufferDataSize);
+                //printf("\n\nFINISH FLAG: %luWE\n", bufferDataSize);
 
                 SocketReadMap.erase(make_pair(socketfd, processid));
                 SocketReceiveBufferMap.erase(make_pair(socketfd, processid));
@@ -670,10 +670,18 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             // Write Send 한 패킷
             if (datasize !=0) {
               //버퍼가 없을때(이전에 write 패킷을 받은 적이 없을 때)
-              if (SocketReceiveBufferMap.count(make_pair(socketfd, processid)) == (size_t)0) {
+              if (SocketReceiveBufferMap.count(make_pair(socketfd, processid)) == (size_t)0) {                
+                void* receiveBuffer = calloc((size_t)2097152, sizeof(char));
+                receivedpacket.pkt.readData((size_t)54, receiveBuffer, datasize);
+
+                SocketReceiveBufferMap[make_pair(socketfd, processid)] = make_pair(receiveBuffer, datasize);
+              }
+              else {
                 // SEQ num이 이미 받은거면 답변 패킷만 보내주기
-                if (SEQNum > 100000) plus = 0;
-                if(currEstabsock.ACK > SEQNum + plus && currEstabsock.SEQ == ACKNum){
+                if(SEQNum > 200000) plus = 0;
+                //if(currEstabsock.SEQ != ACKNum) return;
+                if (currEstabsock.ACK < SEQNum + plus) return;
+                else if(currEstabsock.ACK > SEQNum + plus){
                   MyPacket ackPacket((size_t)54);
 
                   ackPacket.IPAddrWrite(destination_ip, source_ip, 40);
@@ -684,13 +692,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
                   sendPacket("IPv4", std::move(ackPacket.pkt));
                   return;
                 }
-                
-                void* receiveBuffer = calloc((size_t)2097152, sizeof(char));
-                receivedpacket.pkt.readData((size_t)54, receiveBuffer, datasize);
 
-                SocketReceiveBufferMap[make_pair(socketfd, processid)] = make_pair(receiveBuffer, datasize);
-              }
-              else {
                 void* receiveBuffer = SocketReceiveBufferMap[make_pair(socketfd, processid)].first;
                 size_t bufferDataSize = SocketReceiveBufferMap[make_pair(socketfd, processid)].second;
 
@@ -709,6 +711,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
               currEstabsock.ACK += datasize;
 
               sendPacket("IPv4", std::move(ackPacket.pkt));
+              return;
             }
             // Write Send 한 후 돌아온 ACK 패킷
             else {
