@@ -128,7 +128,7 @@ public:
     in_addr_t sourceip;
     uint16_t sourceport;
     uint32_t SEQ;
-    uint32_t ACK;
+    uint64_t ACK;
     EstabStatus(UUID uuid, int pid, in_addr_t daddr, uint16_t dp, in_addr_t saddr, uint16_t sp, uint32_t seq, uint32_t ack): syscallUUID{uuid}, processid{pid}, destinationip{daddr}, destinationport{dp}, sourceip{saddr}, sourceport{sp}, SEQ{seq}, ACK{ack} {};
   };
 

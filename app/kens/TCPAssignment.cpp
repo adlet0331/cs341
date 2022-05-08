@@ -215,6 +215,7 @@ void TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struc
   fstPacket.IPAddrWrite(client_ip, server_ip, 40);
   fstPacket.TCPHeadWrite(client_ip, server_ip, client_port, server_port, randSeqNum, 0, 0b10, 0, 0);
   fstPacket.syscallUUID = syscallUUID;
+  fstPacket.syscallUUID = syscallUUID;
 
   // Status Change Listen -> SysSent 
   SocketStatusMap[make_pair(sockfd, pid)] = socket_data::SysSentStatus(syscallUUID, pid, server_ip, server_port, client_ip, client_port);
@@ -512,6 +513,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   size_t datasize = receivedpacket.getdatasize();
   uint32_t ACKNum = receivedpacket.ACKNum();
   uint32_t SEQNum = receivedpacket.SeqNum();
+  uint64_t plus = 4294967296;
   UUID receivedSyscall = receivedpacket.syscallUUID;
 
   if (!(receivedpacket.checksum()))
@@ -568,8 +570,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             newpacket.TCPHeadWrite(source_ip, destination_ip, destination_port, source_port, randSeqNum, SEQNum + 1, 0b010010, 0, 0);
             newpacket.syscallUUID = receivedSyscall;
 
-            sendPacket("IPv4", std::move(newpacket.pkt));
-            //send_unreliable_packet(socketfd, processid, newpacket);
+            send_unreliable_packet(socketfd, processid, newpacket);
             
             //SynRcvd 상태인 socket_data 생성해서 넣어주기
             int newsockfd = createFileDescriptor(processid);
@@ -634,13 +635,16 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
             //Estab 상태인 socket_data 생성해서 넣어주기
             SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port, ACKNum, SEQNum};
+
+            received_unreliable_packet(socketfd, processid, receivedpacket, 2);
             thisListeningsocketPointer->establishedStatusKeyList.push_back(make_pair(socketfd, processid));
             
             this->catchAccept(listeningfd, processid);
           }
         },
-        [&](socket_data::EstabStatus currEstabsock) {
+        [&](socket_data::EstabStatus& currEstabsock) {
             // Establish 된 소켓
+            // Finish Flag
             if (currPacketType == PACKET_TYPE_FINISH){      
               if (SocketReadMap.count(make_pair(socketfd,processid)) != 0 && SocketReceiveBufferMap.count(make_pair(socketfd,processid)) != 0)
               {
@@ -653,7 +657,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
                 memcpy(buffer, receivebuffer, bufferDataSize);
 
-                printf("FINISH FLAG: %luWE\n", addrlen);
+                printf("\n\nFINISH FLAG: %luWE\n", bufferDataSize);
 
                 SocketReadMap.erase(make_pair(socketfd, processid));
                 SocketReceiveBufferMap.erase(make_pair(socketfd, processid));
@@ -665,11 +669,24 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             
             // Write Send 한 패킷
             if (datasize !=0) {
+              //버퍼가 없을때(이전에 write 패킷을 받은 적이 없을 때)
               if (SocketReceiveBufferMap.count(make_pair(socketfd, processid)) == (size_t)0) {
-                //버퍼가 없을때(이전에 write 패킷을 받은 적이 없을 때)
+                // SEQ num이 이미 받은거면 답변 패킷만 보내주기
+                if (SEQNum > 100000) plus = 0;
+                if(currEstabsock.ACK > SEQNum + plus && currEstabsock.SEQ == ACKNum){
+                  MyPacket ackPacket((size_t)54);
+
+                  ackPacket.IPAddrWrite(destination_ip, source_ip, 40);
+                  ackPacket.TCPHeadWrite(destination_ip,source_ip,destination_port,source_port, 
+                    ACKNum, SEQNum + datasize, 0b010000, 0, 0);
+                  ackPacket.syscallUUID = receivedSyscall;
+
+                  sendPacket("IPv4", std::move(ackPacket.pkt));
+                  return;
+                }
                 
                 void* receiveBuffer = calloc((size_t)2097152, sizeof(char));
-                receivedpacket.pkt.readData((size_t)54, receiveBuffer,datasize);
+                receivedpacket.pkt.readData((size_t)54, receiveBuffer, datasize);
 
                 SocketReceiveBufferMap[make_pair(socketfd, processid)] = make_pair(receiveBuffer, datasize);
               }
@@ -688,6 +705,8 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
               ackPacket.TCPHeadWrite(destination_ip,source_ip,destination_port,source_port, 
                 ACKNum, SEQNum + datasize, 0b010000, 0, 0);
               ackPacket.syscallUUID = receivedSyscall;
+
+              currEstabsock.ACK += datasize;
 
               sendPacket("IPv4", std::move(ackPacket.pkt));
             }
@@ -750,6 +769,10 @@ void TCPAssignment::received_unreliable_packet(int sockfd, int pid, MyPacket rec
     uint32_t awaitseqNum = awaitpacket.SeqNum();
 
     if (packetFlag == 1 && awaitseqNum + 1 == receivedackNum){
+      await_packet_list.erase(it++);
+      return;
+    }
+    else if (packetFlag == 2 && awaitseqNum + 1 == receivedseqNum){
       await_packet_list.erase(it++);
       return;
     }
