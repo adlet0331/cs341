@@ -150,7 +150,7 @@ private:
   int SenderBufferSize = 10;
   list<pair<UUID, SystemCallParameter>> SyscallStacks;
 
-  Time EstimatedRTT = (uint64_t) 1e7;
+  Time EstimatedRTT = (uint64_t) 1e8;
   Time DevRTT = (uint64_t) 0;
 
 public:
