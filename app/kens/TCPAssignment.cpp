@@ -415,7 +415,7 @@ void TCPAssignment::syscall_read(UUID syscallUUID, int pid, int socketfd, void *
   return;
 }
 
-void TCPAssignment::trigger_read(int socketfd, int pid){
+void TCPAssignment:: trigger_read(int socketfd, int pid){
   void* receivebuffer = SocketReceiveBufferMap[make_pair(socketfd, pid)].first;
   size_t bufferDataSize = SocketReceiveBufferMap[make_pair(socketfd, pid)].second;
 
@@ -624,21 +624,28 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           (currSynRcvdsock.myip == destination_ip && currSynRcvdsock.myport == destination_port)){
             // TODO : 받은 ACKnum과 이전 SeqNum과 비교. 다르면 거부
 
-            UUID uuid = currSynRcvdsock.syscallUUID;
-            int processid = currSynRcvdsock.processid;
-            int listeningfd = currSynRcvdsock.listeningfd;
+            uint32_t awaitseqNum = currSynRcvdsock.seqNum;
 
-            // 이 소켓이 첫번째 소켓을 받은 직후 생긴 Listening Socket FD 가져오기 
-            struct socket_data::ListeningStatus* thisListeningsocketPointer = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find({listeningfd, processid})->second);
-            thisListeningsocketPointer->handshakingStatusKeyList.remove({listeningfd, processid});
+            if (awaitseqNum + 1 != ACKNum){
+              printf("3rd Packet Not Received well %u, %u\n", awaitseqNum, ACKNum);
+            }
+            else{
+              UUID uuid = currSynRcvdsock.syscallUUID;
+              int processid = currSynRcvdsock.processid;
+              int listeningfd = currSynRcvdsock.listeningfd;
 
-            //Estab 상태인 socket_data 생성해서 넣어주기
-            SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port, ACKNum, SEQNum};
+              // 이 소켓이 첫번째 소켓을 받은 직후 생긴 Listening Socket FD 가져오기 
+              struct socket_data::ListeningStatus* thisListeningsocketPointer = get_if<socket_data::ListeningStatus>(&SocketStatusMap.find({listeningfd, processid})->second);
+              thisListeningsocketPointer->handshakingStatusKeyList.remove({listeningfd, processid});
 
-            received_unreliable_packet(socketfd, processid, receivedpacket, 2);
-            thisListeningsocketPointer->establishedStatusKeyList.push_back(make_pair(socketfd, processid));
-            
-            this->catchAccept(listeningfd, processid);
+              //Estab 상태인 socket_data 생성해서 넣어주기
+              SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port, ACKNum, SEQNum};
+              
+              received_unreliable_packet(socketfd, processid, receivedpacket, 2);
+              thisListeningsocketPointer->establishedStatusKeyList.push_back(make_pair(socketfd, processid));
+              
+              this->catchAccept(listeningfd, processid);
+            } 
           }
         },
         [&](socket_data::EstabStatus& currEstabsock) {
@@ -667,7 +674,25 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             // Write Send 한 패킷
             if (datasize !=0) {
               //버퍼가 없을때(이전에 write 패킷을 받은 적이 없을 때)
-              if (SocketReceiveBufferMap.count(make_pair(socketfd, processid)) == (size_t)0) {                
+              printf("DATA PACKET RECEIVED\n");
+              if (SocketReceiveBufferMap.count(make_pair(socketfd, processid)) == (size_t)0) {
+                // SEQ num이 이미 받은거면 답변 패킷만 보내주기
+                if(SEQNum > 200000) plus = 0;
+                printf("SEQ: %lu, getSEQ: %u\n", currEstabsock.ACK, SEQNum);
+                if(currEstabsock.SEQ != ACKNum) return;
+                if (currEstabsock.ACK < SEQNum + plus) return;
+                else if(currEstabsock.ACK > SEQNum + plus){
+                  MyPacket ackPacket((size_t)54);
+
+                  ackPacket.IPAddrWrite(destination_ip, source_ip, 40);
+                  ackPacket.TCPHeadWrite(destination_ip,source_ip,destination_port,source_port, 
+                    ACKNum, SEQNum + datasize, 0b010000, 0, 0);
+                  ackPacket.syscallUUID = receivedSyscall;
+
+                  sendPacket("IPv4", std::move(ackPacket.pkt));
+                  return;
+                }
+
                 void* receiveBuffer = calloc((size_t)2097152, sizeof(char));
                 receivedpacket.pkt.readData((size_t)54, receiveBuffer, datasize);
 
@@ -676,7 +701,8 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
               else {
                 // SEQ num이 이미 받은거면 답변 패킷만 보내주기
                 if(SEQNum > 200000) plus = 0;
-                //if(currEstabsock.SEQ != ACKNum) return;
+                printf("SEQ: %lu, getSEQ: %u\n", currEstabsock.ACK, SEQNum);
+                if(currEstabsock.SEQ != ACKNum) return;
                 if (currEstabsock.ACK < SEQNum + plus) return;
                 else if(currEstabsock.ACK > SEQNum + plus){
                   MyPacket ackPacket((size_t)54);
@@ -771,7 +797,8 @@ void TCPAssignment::received_unreliable_packet(int sockfd, int pid, MyPacket rec
       await_packet_list.erase(it++);
       return;
     }
-    else if (packetFlag == 2 && awaitseqNum + 1 == receivedseqNum){
+    else if (packetFlag == 2 && awaitseqNum == receivedseqNum){
+      printf("\n\n\nASDFASDF\n\n\n");
       await_packet_list.erase(it++);
       return;
     }
