@@ -407,7 +407,6 @@ void TCPAssignment::catchAccept(int listeningfd, int processid){
 }
 
 void TCPAssignment::syscall_read(UUID syscallUUID, int pid, int socketfd, void * addr, size_t addrlen){ 
-  // printf("syscall addrlen : %d \n", addrlen);
   SocketReadMap[make_pair(socketfd,pid)] = (make_tuple(syscallUUID, addr, addrlen));
 
   if (SocketReceiveBufferMap.count(make_pair(socketfd, pid)) != (size_t)0 )
@@ -657,8 +656,6 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
                 memcpy(buffer, receivebuffer, bufferDataSize);
 
-                //printf("\n\nFINISH FLAG: %luWE\n", bufferDataSize);
-
                 SocketReadMap.erase(make_pair(socketfd, processid));
                 SocketReceiveBufferMap.erase(make_pair(socketfd, processid));
                 this->returnSystemCallCustom(readsyscallUUID,bufferDataSize);  
@@ -757,7 +754,6 @@ void TCPAssignment::send_unreliable_packet(int sockfd, int pid, MyPacket myPacke
 }
 
 void TCPAssignment::received_unreliable_packet(int sockfd, int pid, MyPacket receivedPacket, int packetFlag){
-  printf("R");
   socket_data::BufferQueue& await_packet_list = SocketPacketAwaitingMap[make_pair(sockfd, pid)];
 
   uint32_t receivedackNum = receivedPacket.ACKNum();
