@@ -115,9 +115,9 @@ public:
     uint16_t clientport;
     in_addr_t myip;
     uint16_t myport;
-    int seqNum;
+    uint32_t seqNum;
 
-    SynRcvdStatus(UUID uuid, int pid, int lfd, in_addr_t saddr, uint16_t sp, in_addr_t caddr, uint16_t cp, int seq): syscallUUID{uuid}, processid{pid}, listeningfd{lfd}, clientip{caddr}, clientport{cp}, myip{saddr}, myport{sp}, seqNum{seq} {};
+    SynRcvdStatus(UUID uuid, int pid, int lfd, in_addr_t saddr, uint16_t sp, in_addr_t caddr, uint16_t cp, uint32_t seq): syscallUUID{uuid}, processid{pid}, listeningfd{lfd}, clientip{caddr}, clientport{cp}, myip{saddr}, myport{sp}, seqNum{seq} {};
   };
 
   struct EstabStatus{
@@ -150,7 +150,7 @@ private:
   int SenderBufferSize = 10;
   list<pair<UUID, SystemCallParameter>> SyscallStacks;
 
-  Time EstimatedRTT = (uint64_t) 1e8;
+  Time EstimatedRTT = (uint64_t) 1e7;
   Time DevRTT = (uint64_t) 0;
 
 public:
@@ -188,7 +188,7 @@ private:
   void syscall_write(UUID syscallUUID, int pid, int sockfd, void * addr, size_t addrlen);
   void returnSystemCallCustom(UUID syscallUUID, int var);
   void send_unreliable_packet(int sockfd, int pid, MyPacket myPacket);
-  void received_unreliable_packet(int sockfd, int pid, MyPacket MyPacket, int packetFlag);
+  void received_unreliable_packet(int sockfd, int pid, MyPacket MyPacket);
   void UpdateTOI(Time sendTime);
 };
 
