@@ -200,7 +200,6 @@ void TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struc
   fstPacket.IPAddrWrite(client_ip, server_ip, 40);
   fstPacket.TCPHeadWrite(client_ip, server_ip, client_port, server_port, randSeqNum, 0, 0b10, 0, 0);
   fstPacket.syscallUUID = syscallUUID;
-  fstPacket.syscallUUID = syscallUUID;
 
   // Status Change Listen -> SysSent 
   SocketStatusMap[make_pair(sockfd, pid)] = socket_data::SysSentStatus(syscallUUID, pid, server_ip, server_port, client_ip, client_port);
@@ -424,7 +423,6 @@ void TCPAssignment:: trigger_read(int socketfd, int pid){
   SocketReadMap.erase(make_pair(socketfd, pid));
   free(receivebuffer);
   this->returnSystemCallCustom(syscallUUID,addrlen);
-
 }
 
 void TCPAssignment::trigger_sendqueue(int sockfd, int pid){
@@ -441,7 +439,6 @@ void TCPAssignment::trigger_sendqueue(int sockfd, int pid){
 
     if (!mpkt.isSent){
       sendPacket("IPv4", std::move(mpkt.pkt));
-      this->returnSystemCallCustom(mpkt.syscallUUID, mpkt.getdatasize());
 
       mpkt.isSent = true;
       any payload = socket_data::BufferData(true, sockfd, pid, ackNum, seqNum, getCurrentTime());
@@ -474,6 +471,7 @@ void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * 
 
   if (SocketSendBufferMap.count(make_pair(sockfd, pid)) == 0){
     socket_data::BufferQueue newsenderqueue;
+    newsenderqueue.clear();
     SocketSendBufferMap[make_pair(sockfd, pid)] = newsenderqueue;
   }
   SocketSendBufferMap[make_pair(sockfd, pid)].push_back(newpacket);
@@ -486,8 +484,9 @@ void TCPAssignment::syscall_write(UUID syscallUUID, int pid, int sockfd, void * 
 void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
   // 온 Packet 정보 받아오기
   MyPacket receivedpacket(packet);
-  if ( !receivedpacket.checksum() )
+  if ( !receivedpacket.checksum() ){
     return;
+  }
     
   in_addr_t destination_ip = receivedpacket.dest_ip();
   uint16_t destination_port = receivedpacket.dest_port();
@@ -565,10 +564,9 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           // SYNbit, Seq 넘버 확인.
           // Server가 연결하고자 하는 SysSentsocket 맞을 때
           if(currPacketType == PACKET_TYPE_SYNACK && 
-          (currSysSentsock.myip == INADDR_ANY && currSysSentsock.myport == destination_port) || 
-          (currSysSentsock.myip == destination_ip && currSysSentsock.myport == destination_port)){
-            // TODO : 받은 ACKnum과 이전 SeqNum과 비교. 다르면 거부
-
+          ((currSysSentsock.myip == INADDR_ANY && currSysSentsock.myport == destination_port) || 
+          (currSysSentsock.myip == destination_ip && currSysSentsock.myport == destination_port))
+          ){
             UUID uuid = currSysSentsock.syscallUUID;
             int processid = currSysSentsock.processid;
             
@@ -587,7 +585,6 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
             //EstabStatus 상태인 socket_data 생성해서 넣어주기
             SocketStatusMap[make_pair(socketfd, processid)] = socket_data::EstabStatus{uuid, processid, source_ip, source_port, destination_ip, destination_port, newSEQNum, newACKNum};
-            printf("Second Packet Received: %u acknum\n", ACKNum);
 
             received_unreliable_packet(socketfd, processid, receivedpacket);
 
@@ -601,17 +598,14 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
           // Client -> Server. 3번째. Server 입장
           // ACKbit, ACKnum 확인. ESTAB
           // Client가 연결하고자 하는 SysSentsocket가 맞을 때
-          if((currSynRcvdsock.myip == INADDR_ANY && currSynRcvdsock.myport == destination_port) || 
-          (currSynRcvdsock.myip == destination_ip && currSynRcvdsock.myport == destination_port) && 
+          if(((currSynRcvdsock.myip == INADDR_ANY && currSynRcvdsock.myport == destination_port) || 
+          (currSynRcvdsock.myip == destination_ip && currSynRcvdsock.myport == destination_port)) && 
           currPacketType == PACKET_TYPE_ACK){
             // TODO : 받은 ACKnum과 이전 SeqNum과 비교. 다르면 거부
 
             uint32_t awaitseqNum = currSynRcvdsock.seqNum;
 
-            if (awaitseqNum + 1 != ACKNum){
-              printf("3rd Packet Not Received well %u, %u\n", awaitseqNum, ACKNum);
-            }
-            else{
+            if (awaitseqNum + 1 == ACKNum){
               UUID uuid = currSynRcvdsock.syscallUUID;
               int processid = currSynRcvdsock.processid;
               int listeningfd = currSynRcvdsock.listeningfd;
@@ -636,11 +630,12 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             if (currPacketType == PACKET_TYPE_FINISH){
               size_t bufferDataSize = SocketReceiveBufferMap[make_pair(socketfd, processid)].second;
 
-              printf("FINISH PACKET ARRIVED \n");
               if (SocketReadMap.count(make_pair(socketfd,processid)) != 0 && 
               SocketReceiveBufferMap.count(make_pair(socketfd,processid)) != 0 &&
-              currEstabsock.ACK == SEQNum)
+              currEstabsock.ACK == SEQNum && 
+              currEstabsock.SEQ == ACKNum)
               {
+                printf("FINISH PACKET ARRIVED \n");
                 void* receivebuffer = SocketReceiveBufferMap[make_pair(socketfd, processid)].first;
                 size_t bufferDataSize = SocketReceiveBufferMap[make_pair(socketfd, processid)].second;
 
@@ -658,7 +653,6 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             }
             // 돌아오지 않은 2번째
             else if (currPacketType == PACKET_TYPE_SYNACK){
-              printf("RESEND third packet\n");
               MyPacket newpacket{size_t(54)};
 
               uint32_t newSEQNum = ACKNum;
@@ -670,6 +664,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
               this->sendPacket("IPv4", std::move(newpacket.pkt));
               
               received_unreliable_packet(socketfd, processid, receivedpacket);
+              return;
             }
             // Write Send 한 패킷
             else if (datasize != 0 && currPacketType == PACKET_TYPE_ACK) {
@@ -684,13 +679,14 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
                 void* receiveBuffer = SocketReceiveBufferMap[make_pair(socketfd, processid)].first;
                 size_t bufferDataSize = SocketReceiveBufferMap[make_pair(socketfd, processid)].second;
 
-                currEstabsock.ACK += datasize;
+                currEstabsock.ACK = SEQNum + datasize;
 
                 receivedpacket.pkt.readData((size_t)54, (receiveBuffer + bufferDataSize), datasize);
                 SocketReceiveBufferMap[make_pair(socketfd, processid)] = make_pair(receiveBuffer, datasize + bufferDataSize);
 
                 trigger_read(socketfd, processid);
               }
+              else if (currEstabsock.ACK < SEQNum) return;
               // 아니라면 그냥 답변패킷만 보내기
               MyPacket ackPacket((size_t)54);
 
@@ -707,20 +703,21 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
               if (!send_queue.empty()){
                 MyPacket frontPacket = send_queue.front();
                 uint32_t frontsize = frontPacket.getdatasize();
-                uint32_t receivedSEQ = ACKNum;
                 
                 uint32_t queuedSEQ = frontPacket.SeqNum();
                 
-                if (queuedSEQ + frontsize == receivedSEQ){
+                if (queuedSEQ + frontsize == ACKNum){
                   send_queue.pop_front();
+                  this->returnSystemCallCustom(frontPacket.syscallUUID, frontsize);
                   trigger_sendqueue(socketfd, processid);
+                  return;
                 }
-              } 
+              }
             }
         },
         [](auto sock_data) {
           // 위의 상태와 다른 경우. 에러처리
-          printf("\nUnexpected Packet Data Type\n");
+          assert("\nUnexpected Packet Data Type\n");
           return;
         },
       }, iter->second);
@@ -802,24 +799,15 @@ void TCPAssignment::timerCallback(any payload) {
       if (index >= SenderBufferSize) return;
 
       uint32_t myACK = myPacket.ACKNum();
+      uint32_t mySEQ = myPacket.SeqNum();
 
-      if (myACK > revisedackNum) return;
-
-      if (myACK == revisedackNum){
+      //if (myPacket.isSent) UpdateTOI(timerStartedTime);
+      if (mySEQ == revisedackNum){
+        myPacket.isSent = true;
         sendPacket("IPv4", myPacket.pkt);
-        printf("RESEND WRITE PACKET\n");
-
-        //if (myPacket.isSent) UpdateTOI(timerStartedTime);
-
-        if (!myPacket.isSent){
-          this->returnSystemCallCustom(myPacket.syscallUUID, myPacket.getdatasize());
-          myPacket.isSent = true;
-        }
-
         any newPayload = socket_data::BufferData(true, sockfd, pid, revisedackNum, revisedseqNum, getCurrentTime());
 
         addTimer(newPayload, EstimatedRTT + 4 * DevRTT);
-        return;
       }
       index += 1;
     }

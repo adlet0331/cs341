@@ -147,7 +147,7 @@ private:
   map<socket_data::StatusKey, tuple<UUID,void*,size_t>> SocketReadMap;
   socket_data::BufferQueueMap SocketPacketAwaitingMap;
 
-  int SenderBufferSize = 10;
+  int SenderBufferSize = 15;
   list<pair<UUID, SystemCallParameter>> SyscallStacks;
 
   Time EstimatedRTT = (uint64_t) 1e8;
