@@ -683,6 +683,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
                   ackPacket.syscallUUID = receivedSyscall;
 
                   sendPacket("IPv4", std::move(ackPacket.pkt));
+                  return;
                 }
 
                 void* receiveBuffer = calloc((size_t)2097152, sizeof(char));
@@ -705,6 +706,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
                   ackPacket.syscallUUID = receivedSyscall;
 
                   sendPacket("IPv4", std::move(ackPacket.pkt));
+                  return;
                 }
 
                 void* receiveBuffer = SocketReceiveBufferMap[make_pair(socketfd, processid)].first;
