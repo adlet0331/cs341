@@ -420,9 +420,9 @@ void TCPAssignment:: trigger_read(int socketfd, int pid){
   memcpy(newbuffer, (receivebuffer + addrlen), newBufferDataSize);
 
   SocketReceiveBufferMap[make_pair(socketfd, pid)] = make_pair(newbuffer, newBufferDataSize);
-  SocketReadMap.erase(make_pair(socketfd, pid));
+  SocketReadMap.clear();
   free(receivebuffer);
-  this->returnSystemCallCustom(syscallUUID,addrlen);
+  this->returnSystemCallCustom(syscallUUID, addrlen);
 }
 
 void TCPAssignment::trigger_sendqueue(int sockfd, int pid){
@@ -628,6 +628,7 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
             // Establish 된 소켓
             // Finish Flag
             if (currPacketType == PACKET_TYPE_FINISH){
+              //printf("FINISH PACKET ARRIVED \n");
               size_t bufferDataSize = SocketReceiveBufferMap[make_pair(socketfd, processid)].second;
 
               if (SocketReadMap.count(make_pair(socketfd,processid)) != 0 && 
@@ -635,7 +636,6 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
               currEstabsock.ACK == SEQNum && 
               currEstabsock.SEQ == ACKNum)
               {
-                printf("FINISH PACKET ARRIVED \n");
                 void* receivebuffer = SocketReceiveBufferMap[make_pair(socketfd, processid)].first;
                 size_t bufferDataSize = SocketReceiveBufferMap[make_pair(socketfd, processid)].second;
 
@@ -675,7 +675,8 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
               }
 
               // SEQ num이 현재의 것과 일치하면 읽어주기
-              if(currEstabsock.SEQ == ACKNum && currEstabsock.ACK == SEQNum){
+              if (currEstabsock.ACK + 1000000 < SEQNum + 1000000) return;
+              else if(currEstabsock.SEQ == ACKNum && currEstabsock.ACK == SEQNum){
                 void* receiveBuffer = SocketReceiveBufferMap[make_pair(socketfd, processid)].first;
                 size_t bufferDataSize = SocketReceiveBufferMap[make_pair(socketfd, processid)].second;
 
@@ -686,7 +687,6 @@ void TCPAssignment::packetArrived(string fromModule, Packet &&packet) {
 
                 trigger_read(socketfd, processid);
               }
-              else if (currEstabsock.ACK < SEQNum) return;
               // 아니라면 그냥 답변패킷만 보내기
               MyPacket ackPacket((size_t)54);
 
@@ -812,7 +812,7 @@ void TCPAssignment::timerCallback(any payload) {
       index += 1;
     }
   }
-  // write 이외의 것들
+  // write 이외의 것들 : handshake들
   else{
     socket_data::BufferQueue& await_queue = SocketPacketAwaitingMap[key];
     int index = 0;

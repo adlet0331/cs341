@@ -1,0 +1,164 @@
+Running main() from /mnt/c/Workspace/Programming/KENSv3-master/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = -TestEnv_Congestion*
+[==========] Running 35 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 10 tests from TestEnv_Reliable
+[ RUN      ] TestEnv_Reliable.TestOpen
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+[       OK ] TestEnv_Reliable.TestOpen (11623 ms)
+[ RUN      ] TestEnv_Reliable.TestBind_Simple
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+[       OK ] TestEnv_Reliable.TestBind_Simple (1 ms)
+[ RUN      ] TestEnv_Reliable.TestBind_DoubleBind
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+[       OK ] TestEnv_Reliable.TestBind_DoubleBind (1 ms)
+[ RUN      ] TestEnv_Reliable.TestBind_GetSockName
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+[       OK ] TestEnv_Reliable.TestBind_GetSockName (1 ms)
+[ RUN      ] TestEnv_Reliable.TestBind_OverlapPort
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+[       OK ] TestEnv_Reliable.TestBind_OverlapPort (1 ms)
+[ RUN      ] TestEnv_Reliable.TestBind_OverlapClosed
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+[       OK ] TestEnv_Reliable.TestBind_OverlapClosed (2 ms)
+[ RUN      ] TestEnv_Reliable.TestBind_DifferentIP_SamePort
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+[       OK ] TestEnv_Reliable.TestBind_DifferentIP_SamePort (1 ms)
+[ RUN      ] TestEnv_Reliable.TestBind_SameIP_DifferentPort
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+[       OK ] TestEnv_Reliable.TestBind_SameIP_DifferentPort (1 ms)
+[ RUN      ] TestEnv_Reliable.TestAccept_Backlog1
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 2
+HANDSHAKE PACKET WELL RECEIVED 1
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Reliable.TestAccept_Backlog1 (167 ms)
+[ RUN      ] TestEnv_Reliable.TestAccept_Backlog2
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Reliable.TestAccept_Backlog2 (119 ms)
+[----------] 10 tests from TestEnv_Reliable (11926 ms total)
+
+[----------] 25 tests from TestEnv_Any
+[ RUN      ] TestEnv_Any.TestAccept_BeforeAccept
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestAccept_BeforeAccept (9 ms)
+[ RUN      ] TestEnv_Any.TestAccept_AfterAccept
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestAccept_AfterAccept (9 ms)
+[ RUN      ] TestEnv_Any.TestAccept_MultipleInterface1
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestAccept_MultipleInterface1 (64 ms)
+[ RUN      ] TestEnv_Any.TestAccept_MultipleInterface2
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestAccept_MultipleInterface2 (47 ms)
+[ RUN      ] TestEnv_Any.TestConnect_BeforeAccept
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestConnect_BeforeAccept (9 ms)
+[ RUN      ] TestEnv_Any.TestConnect_AfterAccept
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestConnect_AfterAccept (8 ms)
+[ RUN      ] TestEnv_Any.TestConnect_SimultaneousConnect
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestConnect_SimultaneousConnect (8 ms)
+[ RUN      ] TestEnv_Any.TestClose_Connect_CloseFirst
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestClose_Connect_CloseFirst (9 ms)
+[ RUN      ] TestEnv_Any.TestClose_Connect_CloseLater
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestClose_Connect_CloseLater (8 ms)
+[ RUN      ] TestEnv_Any.TestClose_Connect_CloseSimultaneous
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestClose_Connect_CloseSimultaneous (8 ms)
+[ RUN      ] TestEnv_Any.TestClose_Accept_CloseLater
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestClose_Accept_CloseLater (9 ms)
+[ RUN      ] TestEnv_Any.TestClose_Accept_CloseFirst
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestClose_Accept_CloseFirst (9 ms)
+[ RUN      ] TestEnv_Any.TestClose_Accept_CloseSimultaneous
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestClose_Accept_CloseSimultaneous (9 ms)
+[ RUN      ] TestEnv_Any.TestTransfer_Connect_Send_Symmetric
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestTransfer_Connect_Send_Symmetric (73 ms)
+[ RUN      ] TestEnv_Any.TestTransfer_Connect_Send_EOF
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestTransfer_Connect_Send_EOF (67 ms)
+[ RUN      ] TestEnv_Any.TestTransfer_Connect_Recv_Symmetric
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestTransfer_Connect_Recv_Symmetric (92 ms)
+[ RUN      ] TestEnv_Any.TestTransfer_Connect_Recv_EOF
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestTransfer_Connect_Recv_EOF (100 ms)
+[ RUN      ] TestEnv_Any.TestTransfer_Connect_Recv_SmallBuffer1
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestTransfer_Connect_Recv_SmallBuffer1 (239 ms)
+[ RUN      ] TestEnv_Any.TestTransfer_Connect_Recv_SmallBuffer2
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestTransfer_Connect_Recv_SmallBuffer2 (516 ms)
+[ RUN      ] TestEnv_Any.TestTransfer_Accept_Send_Symmetric
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestTransfer_Accept_Send_Symmetric (72 ms)
+[ RUN      ] TestEnv_Any.TestTransfer_Accept_Send_EOF
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestTransfer_Accept_Send_EOF (66 ms)
+[ RUN      ] TestEnv_Any.TestTransfer_Accept_Recv_Symmetric
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestTransfer_Accept_Recv_Symmetric (99 ms)
+[ RUN      ] TestEnv_Any.TestTransfer_Accept_Recv_EOF
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestTransfer_Accept_Recv_EOF (107 ms)
+[ RUN      ] TestEnv_Any.TestTransfer_Accept_Recv_SmallBuffer1
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestTransfer_Accept_Recv_SmallBuffer1 (245 ms)
+[ RUN      ] TestEnv_Any.TestTransfer_Accept_Recv_SmallBuffer2
+[RANDOM_SEED : 81777 RUN_SOLUTION : 0 UNRELIABLE : 1]
+HANDSHAKE PACKET WELL RECEIVED 0
+[       OK ] TestEnv_Any.TestTransfer_Accept_Recv_SmallBuffer2 (504 ms)
+[----------] 25 tests from TestEnv_Any (2404 ms total)
+
+[----------] Global test environment tear-down
+[==========] 35 tests from 2 test suites ran. (14331 ms total)
+[  PASSED  ] 35 tests.
