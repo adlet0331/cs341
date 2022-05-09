@@ -125,16 +125,21 @@ void TCPAssignment::syscall_socket(UUID syscallUUID, int pid, int domain, int ty
 }
 
 void TCPAssignment::syscall_close(UUID syscallUUID, int pid, int sockfd){
-
-  removeFileDescriptor(pid, sockfd);
-  if (pid >= 0 && sockfd >= 0){
-    struct socket_data::EstabStatus* thisListeningsocketPointer = get_if<socket_data::EstabStatus>(&SocketStatusMap.find({sockfd, pid})->second);
-    SocketStatusMap.erase(make_pair(sockfd, pid));
-
+  if (pid < 0 || sockfd < 0){
+    this->returnSystemCallCustom(syscallUUID, -1);
+  } else {
     this->returnSystemCallCustom(syscallUUID, 0);
   }
 
-  this->returnSystemCallCustom(syscallUUID, -1);
+  // removeFileDescriptor(pid, sockfd);
+  // if (pid >= 0 && sockfd >= 0){
+  //   struct socket_data::EstabStatus* thisListeningsocketPointer = get_if<socket_data::EstabStatus>(&SocketStatusMap.find({sockfd, pid})->second);
+  //   SocketStatusMap.erase(make_pair(sockfd, pid));
+
+  //   this->returnSystemCallCustom(syscallUUID, 0);
+  // }
+  return;
+  
 }
 
 void TCPAssignment::syscall_connect(UUID syscallUUID, int pid, int sockfd, struct sockaddr * addr, socklen_t addrlen){
