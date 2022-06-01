@@ -70,10 +70,10 @@ public:
   MyPacket(Packet packet): pkt{packet} {}
   void IPAddrWrite(uint32_t s_addr, uint32_t d_addr, uint16_t datalen);
   void UDPWrite(uint16_t s_port, uint16_t d_port, uint16_t len);
-  uint32_t source_ip();
-  uint32_t dest_ip();
   void RIPWrite(uint8_t command, uint8_t version, uint16_t familyidnetifier, map<pair<ipv4_t, ipv4_t>,size_t> routingtable, ipv4_t routerIP);
-
+  uint32_t source_ip();
+  uint8_t command();
+  
 };
 
 class RoutingAssignment : public HostModule,
@@ -82,9 +82,12 @@ class RoutingAssignment : public HostModule,
 private:
   virtual void timerCallback(std::any payload) final;
   ipv4_t routerIP;
-  int routerPort = 520;
+  
   map<pair<ipv4_t, ipv4_t>,size_t> routingtable;
-
+  
+  bool tabelupdated;
+  int routerPort = 520;
+  Time EstimatedRTT = (uint64_t) 1e8;
 
 public:
   RoutingAssignment(Host &host);
