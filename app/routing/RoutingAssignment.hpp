@@ -72,6 +72,7 @@ public:
   void UDPWrite(uint16_t s_port, uint16_t d_port, uint16_t len);
   uint32_t source_ip();
   uint32_t dest_ip();
+  void RIPWrite(uint8_t command, uint8_t version, uint16_t familyidnetifier, map<pair<ipv4_t, ipv4_t>,size_t> routingtable, ipv4_t routerIP);
 
 };
 
@@ -82,6 +83,7 @@ private:
   virtual void timerCallback(std::any payload) final;
   ipv4_t routerIP;
   int routerPort = 520;
+  map<pair<ipv4_t, ipv4_t>,size_t> routingtable;
 
 
 public:
@@ -111,6 +113,7 @@ public:
   virtual ~RoutingAssignment();
 
   void getSelfIP();
+  int RoutingtableSize();
 
 protected:
   virtual std::any diagnose(std::any param) final {
