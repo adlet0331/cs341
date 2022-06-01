@@ -11,6 +11,9 @@
 #include <E/Networking/E_TimerModule.hpp>
 #include <E/Networking/E_Wire.hpp>
 
+using namespace std;
+
+
 namespace E {
 
 constexpr Size MaxCost = 20;
@@ -60,11 +63,26 @@ __attribute__((packed));
 ;
 #endif
 
+class MyPacket {
+public:
+  Packet pkt;
+  MyPacket(size_t in_size): pkt{Packet(in_size)} {}
+  MyPacket(Packet packet): pkt{packet} {}
+  void IPAddrWrite(uint32_t s_addr, uint32_t d_addr, uint16_t datalen);
+  void UDPWrite(uint16_t s_port, uint16_t d_port, uint16_t len);
+  uint32_t source_ip();
+  uint32_t dest_ip();
+
+};
+
 class RoutingAssignment : public HostModule,
                           private RoutingInfoInterface,
                           public TimerModule {
 private:
   virtual void timerCallback(std::any payload) final;
+  ipv4_t routerIP;
+  int routerPort = 520;
+
 
 public:
   RoutingAssignment(Host &host);
@@ -91,6 +109,8 @@ public:
   virtual void initialize();
   virtual void finalize();
   virtual ~RoutingAssignment();
+
+  void getSelfIP();
 
 protected:
   virtual std::any diagnose(std::any param) final {
