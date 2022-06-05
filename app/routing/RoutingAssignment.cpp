@@ -30,13 +30,13 @@ void RoutingAssignment::initialize() {
   
   getSelfIP();
   
+  
   routingtable[make_pair(routerIP,routerIP)] = (size_t)0;
   tabelupdated = true;
 
   int size = RoutingtableSize();
 
-  MyPacket requestPacket((size_t)(42 + 20*size));
-  uint32_t source_IP = NetworkUtil::arrayToUINT64(routerIP);
+  MyPacket requestPacket((size_t)(46 + 20*size));
   ipv4_t broadIP;
   broadIP[0] = (uint8_t)255;
   broadIP[1] = (uint8_t)255;
@@ -44,8 +44,8 @@ void RoutingAssignment::initialize() {
   broadIP[3] = (uint8_t)255;
   uint32_t dest_IP = NetworkUtil::arrayToUINT64(broadIP);
   
-  requestPacket.IPAddrWrite(source_IP,dest_IP,(uint16_t)(28+(20*size)));
-  requestPacket.UDPWrite((uint16_t)520,(uint16_t)520, (uint16_t)(8+(20*size)));
+  requestPacket.IPAddrWrite(routerIP,dest_IP,(uint16_t)(32+(20*size)));
+  requestPacket.UDPWrite((uint16_t)520,(uint16_t)520, (uint16_t)(12+(20*size)));
   requestPacket.RIPWrite((uint8_t)1, (uint8_t)1, (uint16_t)0,routingtable, routerIP);
 
   sendPacket("IPv4", std::move(requestPacket.pkt));
@@ -61,7 +61,8 @@ void RoutingAssignment::finalize() {}
  * @return cost or -1 for no found host
  */
 Size RoutingAssignment::ripQuery(const ipv4_t &ipv4) {
-  return (Size)routingtable[make_pair(routerIP,ipv4)];
+  uint32_t dest_ip = NetworkUtil::arrayToUINT64(ipv4);
+  return (Size)routingtable[make_pair(routerIP,dest_ip)];
 }
 
 void RoutingAssignment::packetArrived(std::string fromModule, Packet &&packet) {
@@ -73,14 +74,13 @@ void RoutingAssignment::packetArrived(std::string fromModule, Packet &&packet) {
   if(command == (uint8_t) 1) {
     // 첫 reqeust일 때
     
-    routingtable[make_pair(routerIP,array_source_ip)] = 1;
+    routingtable[make_pair(routerIP,source_ip)] = 1;
     
     int size = RoutingtableSize();
-    MyPacket responsePacket((size_t)(42 + 20*size));
-    uint32_t router_IP = NetworkUtil::arrayToUINT64(routerIP);
+    MyPacket responsePacket((size_t)(46 + 20*size));
 
-    responsePacket.IPAddrWrite(router_IP,source_ip,(uint16_t)(28+(20*size)));
-    responsePacket.UDPWrite((uint16_t)520,(uint16_t)520, (uint16_t)(8+(20*size)));
+    responsePacket.IPAddrWrite(routerIP,source_ip,(uint16_t)(32+(20*size)));
+    responsePacket.UDPWrite((uint16_t)520,(uint16_t)520, (uint16_t)(12+(20*size)));
     responsePacket.RIPWrite((uint8_t)2, (uint8_t)1, (uint16_t)2,routingtable, routerIP);
 
     sendPacket("IPv4", std::move(responsePacket.pkt));
@@ -95,34 +95,33 @@ void RoutingAssignment::packetArrived(std::string fromModule, Packet &&packet) {
       arrivedPacket.pkt.readData((size_t)(62 + 20*i), &matric, (size_t)4);
       arrivedPacket.pkt.readData((size_t)(50 + 20*i), &dest_ip, (size_t)4);
       
-      dest_ip = ntohl(dest_ip);
-
+      matric = ntohl(matric);
       ipv4_t array_dest_ip = NetworkUtil::UINT64ToArray<4>((uint64_t)dest_ip);
       
-      if(routingtable.count(make_pair(array_source_ip,array_dest_ip)) ==1) {
+      if(routingtable.count(make_pair(source_ip,dest_ip)) ==1) {
         
-        if(routingtable[make_pair(array_source_ip,array_dest_ip)] > (size_t)matric){
+        if(routingtable[make_pair(source_ip,dest_ip)] > (size_t)matric){
           tabelupdated = true;
-          routingtable[make_pair(array_source_ip,array_dest_ip)] = (size_t)matric;
+          routingtable[make_pair(source_ip,dest_ip)] = (size_t)matric;
           
-          if(routingtable[make_pair(routerIP,array_dest_ip)] >
-             routingtable[make_pair(routerIP,array_source_ip)] + routingtable[make_pair(array_source_ip,array_dest_ip)]) {
-               routingtable[make_pair(routerIP,array_dest_ip)] = routingtable[make_pair(routerIP,array_source_ip)] + routingtable[make_pair(array_source_ip,array_dest_ip)];
+          if(routingtable[make_pair(routerIP,dest_ip)] >
+             routingtable[make_pair(routerIP,source_ip)] + routingtable[make_pair(source_ip,dest_ip)]) {
+               routingtable[make_pair(routerIP,dest_ip)] = routingtable[make_pair(routerIP,source_ip)] + routingtable[make_pair(source_ip,dest_ip)];
              }
         }
       }else {
         tabelupdated = true;
 
-        routingtable[make_pair(array_source_ip,array_dest_ip)] = (size_t)matric;
+        routingtable[make_pair(source_ip,dest_ip)] = (size_t)matric;
 
-        if(routingtable.count(make_pair(routerIP,array_dest_ip)) ==1 ) {
-          if(routingtable[make_pair(routerIP,array_dest_ip)] >
-             routingtable[make_pair(routerIP,array_source_ip)] + routingtable[make_pair(array_source_ip,array_dest_ip)]) {
-               routingtable[make_pair(routerIP,array_dest_ip)] = routingtable[make_pair(routerIP,array_source_ip)] + routingtable[make_pair(array_source_ip,array_dest_ip)];
+        if(routingtable.count(make_pair(routerIP,dest_ip)) ==1 ) {
+          if(routingtable[make_pair(routerIP,dest_ip)] >
+             routingtable[make_pair(routerIP,source_ip)] + routingtable[make_pair(source_ip,dest_ip)]) {
+               routingtable[make_pair(routerIP,dest_ip)] = routingtable[make_pair(routerIP,source_ip)] + routingtable[make_pair(source_ip,dest_ip)];
              }
         }
         else {
-          routingtable[make_pair(routerIP,array_dest_ip)] = routingtable[make_pair(routerIP,array_source_ip)] + routingtable[make_pair(array_source_ip,array_dest_ip)];
+          routingtable[make_pair(routerIP,dest_ip)] = routingtable[make_pair(routerIP,source_ip)] + routingtable[make_pair(source_ip,dest_ip)];
         }
       }
     }
@@ -138,8 +137,7 @@ void RoutingAssignment::timerCallback(std::any payload) {
     tabelupdated = false;
 
     int size = RoutingtableSize();
-    MyPacket responsePacket((size_t)(42 + 20*size));
-    uint32_t router_IP = NetworkUtil::arrayToUINT64(routerIP);
+    MyPacket responsePacket((size_t)(46 + 20*size));
 
     ipv4_t broadIP;
     broadIP[0] = (uint8_t)255;
@@ -148,8 +146,8 @@ void RoutingAssignment::timerCallback(std::any payload) {
     broadIP[3] = (uint8_t)255;
     uint32_t dest_IP = NetworkUtil::arrayToUINT64(broadIP);
 
-    responsePacket.IPAddrWrite(router_IP,dest_IP,(uint16_t)(28+(20*size)));
-    responsePacket.UDPWrite((uint16_t)520,(uint16_t)520, (uint16_t)(8+(20*size)));
+    responsePacket.IPAddrWrite(routerIP,dest_IP,(uint16_t)(32+(20*size)));
+    responsePacket.UDPWrite((uint16_t)520,(uint16_t)520, (uint16_t)(12+(20*size)));
     responsePacket.RIPWrite((uint8_t)2, (uint8_t)1, (uint16_t)2,routingtable, routerIP);
 
     sendPacket("IPv4", std::move(responsePacket.pkt));
@@ -165,14 +163,15 @@ void RoutingAssignment::getSelfIP() {
   broadIP[3] = (uint8_t)255;
 
   uint16_t NIC_port = getRoutingTable(broadIP);
-  routerIP = getIPAddr(NIC_port).value();
-  printf("%d. %d. %d. %d \n",routerIP[0],routerIP[1],routerIP[2],routerIP[3]);
+  array_routerIP = getIPAddr(NIC_port).value();
+  routerIP = (uint32_t)NetworkUtil::arrayToUINT64(array_routerIP);
+  printf("%d. %d. %d. %d \n",array_routerIP[0],array_routerIP[1],array_routerIP[2],array_routerIP[3]);
 }
 
 int RoutingAssignment::RoutingtableSize() {
   int size = 0;
   for(auto iter = routingtable.begin(); iter != routingtable.end(); ++iter) {
-    if(iter->first.first[3] == routerIP[3]) size++;
+    if(iter->first.first == routerIP) size++;
   }
   return size;
 }
@@ -194,7 +193,8 @@ void MyPacket::UDPWrite(uint16_t s_port, uint16_t d_port, uint16_t len) {
 }
 
 void MyPacket::RIPWrite(uint8_t command, uint8_t version, uint16_t familyidnetifier, 
-                        map<pair<ipv4_t, ipv4_t>,size_t> routingtable, ipv4_t routerIP) {
+                        map<pair<uint32_t, uint32_t>,size_t> routingtable, uint32_t routerIP) {
+
   pkt.writeData((size_t)42, &command, (size_t)1);
   pkt.writeData((size_t)43, &version, (size_t)1);
   if(command==1) {
@@ -203,12 +203,14 @@ void MyPacket::RIPWrite(uint8_t command, uint8_t version, uint16_t familyidnetif
     pkt.writeData((size_t)(62), &matric, (size_t)4);
   } else {
     int nsize = 0;
+    familyidnetifier = htons(familyidnetifier);
     for(auto iter = routingtable.begin(); iter != routingtable.end(); ++iter) {
-      if(iter->first.first[3] == routerIP[3]) {
+      if(iter->first.first == routerIP) {
         pkt.writeData((size_t)(46 + 20*nsize), &familyidnetifier, (size_t)2);
-        uint32_t IP = NetworkUtil::arrayToUINT64(iter->first.second);
-        pkt.writeData((size_t)(50 + 20*nsize), &IP, (size_t)4);
+        uint32_t destip =iter->first.second;
+        pkt.writeData((size_t)(50 + 20*nsize), &destip, (size_t)4);
         uint32_t matric = (uint64_t)iter->second;
+        matric = htonl(matric);
         pkt.writeData((size_t)(62 + 20*nsize), &matric, (size_t)4);
         nsize++;
       }
@@ -217,7 +219,7 @@ void MyPacket::RIPWrite(uint8_t command, uint8_t version, uint16_t familyidnetif
 }
 
 uint32_t MyPacket::source_ip() {
-  in_addr_t ret;
+  uint32_t ret;
   this->pkt.readData((size_t)26,&ret, (size_t)4);
   return ret;
 }

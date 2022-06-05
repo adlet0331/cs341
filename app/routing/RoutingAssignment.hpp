@@ -70,7 +70,7 @@ public:
   MyPacket(Packet packet): pkt{packet} {}
   void IPAddrWrite(uint32_t s_addr, uint32_t d_addr, uint16_t datalen);
   void UDPWrite(uint16_t s_port, uint16_t d_port, uint16_t len);
-  void RIPWrite(uint8_t command, uint8_t version, uint16_t familyidnetifier, map<pair<ipv4_t, ipv4_t>,size_t> routingtable, ipv4_t routerIP);
+  void RIPWrite(uint8_t command, uint8_t version, uint16_t familyidnetifier, map<pair<uint32_t, uint32_t>,size_t> routingtable, uint32_t routerIP);
   uint32_t source_ip();
   uint8_t command();
   
@@ -81,9 +81,10 @@ class RoutingAssignment : public HostModule,
                           public TimerModule {
 private:
   virtual void timerCallback(std::any payload) final;
-  ipv4_t routerIP;
-  
-  map<pair<ipv4_t, ipv4_t>,size_t> routingtable;
+  ipv4_t array_routerIP;
+  uint32_t routerIP;
+
+  map<pair<uint32_t, uint32_t>,size_t> routingtable;
   
   bool tabelupdated;
   int routerPort = 520;
