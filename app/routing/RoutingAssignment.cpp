@@ -94,7 +94,6 @@ void RoutingAssignment::packetArrived(std::string fromModule, Packet &&packet) {
       uint32_t matric;
       arrivedPacket.pkt.readData((size_t)(62 + 20*i), &matric, (size_t)4);
       arrivedPacket.pkt.readData((size_t)(50 + 20*i), &dest_ip, (size_t)4);
-      
       matric = ntohl(matric);
       ipv4_t array_dest_ip = NetworkUtil::UINT64ToArray<4>((uint64_t)dest_ip);
       
