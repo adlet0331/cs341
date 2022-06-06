@@ -83,6 +83,7 @@ private:
   virtual void timerCallback(std::any payload) final;
   ipv4_t array_routerIP;
   uint32_t routerIP;
+  UUID timerID;
 
   map<pair<uint32_t, uint32_t>,size_t> routingtable;
   
@@ -118,6 +119,7 @@ public:
 
   void getSelfIP();
   int RoutingtableSize();
+  bool AddRoutingTable(uint32_t s_addr_ip, uint32_t d_addr_ip, uint32_t matric);
 
 protected:
   virtual std::any diagnose(std::any param) final {
