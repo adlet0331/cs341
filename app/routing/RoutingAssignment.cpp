@@ -51,91 +51,46 @@ Size RoutingAssignment::ripQuery(const ipv4_t &ipv4) {
 }
 
 void RoutingAssignment::packetArrived(std::string fromModule, Packet &&packet) {
-  // MyPacket arrivedPacket(packet);
-  // uint64_t source_ip = arrivedPacket.source_ip();
-  // ipv4_t array_source_ip = NetworkUtil::UINT64ToArray<4>(source_ip);
-  // uint8_t command = arrivedPacket.command();
+  MyPacket arrivedPacket(packet);
+  uint64_t source_ip = arrivedPacket.source_ip();
+  ipv4_t array_source_ip = NetworkUtil::UINT64ToArray<4>(source_ip);
+  uint8_t command = arrivedPacket.command();
 
-  // if(command == (uint8_t) 1) {
-  //   // 첫 reqeust일 때
+  if(command == (uint8_t) 1) {
     
-  //   tabelupdated = AddRoutingTable(routerIP, source_ip, (uint32_t)1);
+    // 첫 reqeust일 때
+    for(auto iter = interfaceMap.begin(); iter != interfaceMap.end();iter++) {
+      ipv4_t array_interfaceIP = NetworkUtil::UINT64ToArray<4>(iter->first);
+      if(array_interfaceIP[2] == array_source_ip[2]) {
+        AddRoutingTable(iter->first,linkCost(iter->second));
 
-  //   int size = RoutingtableSize();
-  //   MyPacket responsePacket((size_t)(46 + 20*size));
+        int size = RoutingtableSize();
+        MyPacket responsePacket((size_t)(46 + 20*size));
 
-  //   responsePacket.IPAddrWrite(routerIP,source_ip,(uint16_t)(32+(20*size)));
-  //   responsePacket.UDPWrite((uint16_t)520,(uint16_t)520, (uint16_t)(12+(20*size)));
-  //   responsePacket.RIPWrite((uint8_t)2, (uint8_t)1, (uint16_t)2,routingtable, routerIP);
+        responsePacket.IPAddrWrite(iter->first, source_ip,(uint16_t)(32+(20*size)));
+        responsePacket.UDPWrite((uint16_t)520,(uint16_t)520, (uint16_t)(12+(20*size)));
+        responsePacket.RIPWrite((uint8_t)2, routingtable);
 
-  //   sendPacket("IPv4", std::move(responsePacket.pkt));
+        sendPacket("IPv4", std::move(responsePacket.pkt));
+      }
+    }    
+  } else {
+    //response 일 때
+    size_t table_size = (arrivedPacket.pkt.getSize() - (size_t)46)/20;
 
-    
-  // } else {
-  //   //response 일 때
-  //   size_t table_size = (arrivedPacket.pkt.getSize() - (size_t)46)/20;
-  //   map<uint32_t,size_t> recievedRoutingTable;
+    for(size_t i = 0; i <table_size;i++) {
+      uint32_t dest_ip;
+      uint32_t matric;
+      arrivedPacket.pkt.readData((size_t)(62 + 20*i), &matric, (size_t)4);
+      arrivedPacket.pkt.readData((size_t)(50 + 20*i), &dest_ip, (size_t)4);
+      matric = ntohl(matric);
+      AddRoutingTable(dest_ip,matric + routingtable[source_ip]);
+    }
 
-  //   for(size_t i = 0; i <table_size;i++) {
-  //     uint32_t dest_ip;
-  //     uint32_t matric;
-  //     arrivedPacket.pkt.readData((size_t)(62 + 20*i), &matric, (size_t)4);
-  //     arrivedPacket.pkt.readData((size_t)(50 + 20*i), &dest_ip, (size_t)4);
-  //     matric = ntohl(matric);
-  //     recievedRoutingTable[dest_ip] = matric;
-     
-
-  //     // if(routingtable.count(make_pair(source_ip,dest_ip)) ==0 ) {
-  //     //   tabelupdated = true;
-  //     //   cancelTimer(timerID);
-  //     //   timerID = addTimer(NULL, EstimatedRTT);
-  //     //   routingtable[make_pair(source_ip,dest_ip)] = matric;
-        
-  //     //   if(routingtable.count(make_pair(routerIP,dest_ip)) ==0) {
-  //     //     routingtable[make_pair(routerIP,dest_ip)] = routingtable[make_pair(routerIP,source_ip)] + matric;
-  //     //   } else {
-  //     //     if(routingtable[make_pair(routerIP,dest_ip)] > 
-  //     //       routingtable[make_pair(routerIP,source_ip)] + matric) {
-  //     //       routingtable[make_pair(routerIP,dest_ip)] = routingtable[make_pair(routerIP,source_ip)] + matric;
-  //     //     }
-  //     //   }        
-  //     // } else {
-  //     //   if(routingtable[make_pair(source_ip,dest_ip)] > matric) {
-  //     //     tabelupdated = true;
-  //     //     cancelTimer(timerID);
-  //     //     timerID = addTimer(NULL, EstimatedRTT);
-  //     //     routingtable[make_pair(source_ip,dest_ip)] = matric;
-          
-  //     //     if(routingtable.count(make_pair(routerIP,dest_ip)) ==0) {
-  //     //       routingtable[make_pair(routerIP,dest_ip)] = routingtable[make_pair(routerIP,source_ip)] + matric;
-  //     //     } else {
-  //     //       if(routingtable[make_pair(routerIP,dest_ip)] > 
-  //     //         routingtable[make_pair(routerIP,source_ip)] + matric) {
-  //     //         routingtable[make_pair(routerIP,dest_ip)] = routingtable[make_pair(routerIP,source_ip)] + matric;
-  //     //       }
-  //     //     }
-  //     //   }
-  //     // }
-  //   }
-
-  //   if (AddRoutingTable(routerIP,source_ip,recievedRoutingTable[routerIP]) ) {
-  //     tabelupdated = true;    
-      
-  //   }
-  //   recievedRoutingTable.erase(routerIP);
-
-  //   for(auto iter = recievedRoutingTable.begin(); iter != recievedRoutingTable.end(); iter++) {
-  //     if(AddRoutingTable(source_ip, iter->first, iter->second) ) {
-  //       tabelupdated = true;
-  //     }
-  //     if(AddRoutingTable(routerIP, iter->first, routingtable[make_pair(routerIP,source_ip)] + iter->second) ) {
-  //       tabelupdated = true;
-  //     }  
-  //   }
-  // }
+  }
 
   
-  // printf("packet get!\n");
+  printf("packet get!\n");
 }
 
 void RoutingAssignment::timerCallback(std::any payload) {
@@ -186,17 +141,12 @@ int RoutingAssignment::RoutingtableSize() {
   return size;
 }
 
-bool RoutingAssignment::AddRoutingTable(uint32_t s_addr_ip, uint32_t d_addr_ip, uint32_t matric) {
-  // if(routingtable.count(make_pair(s_addr_ip, d_addr_ip)) == 0 
-  //     || routingtable[make_pair(s_addr_ip, d_addr_ip)] > matric) {
+void RoutingAssignment::AddRoutingTable(uint32_t d_addr_ip, uint32_t matric) {
+  if(routingtable.count(d_addr_ip) == 0 || routingtable[d_addr_ip] > matric) {
 
-  //   routingtable[make_pair(s_addr_ip, d_addr_ip)] = matric;
-  //   routingtable[make_pair(d_addr_ip, s_addr_ip)] = matric;
-  //   return true;
-  // } else {
-  //   return false;
-  // }
-
+    routingtable[d_addr_ip] = matric;
+    tabelupdated = true;
+  } 
 }
 
 void RoutingAssignment::broadcast(uint8_t command) {

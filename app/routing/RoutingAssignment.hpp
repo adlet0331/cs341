@@ -120,7 +120,7 @@ public:
 
   void getSelfIP();
   int RoutingtableSize();
-  bool AddRoutingTable(uint32_t s_addr_ip, uint32_t d_addr_ip, uint32_t matric);
+  void AddRoutingTable(uint32_t d_addr_ip, uint32_t matric);
   void broadcast(uint8_t version);
 
 protected:
