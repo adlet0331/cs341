@@ -70,8 +70,9 @@ public:
   MyPacket(Packet packet): pkt{packet} {}
   void IPAddrWrite(uint32_t s_addr, uint32_t d_addr, uint16_t datalen);
   void UDPWrite(uint16_t s_port, uint16_t d_port, uint16_t len);
-  void RIPWrite(uint8_t command, uint8_t version, uint16_t familyidnetifier, map<pair<uint32_t, uint32_t>,size_t> routingtable, uint32_t routerIP);
+  void RIPWrite(uint8_t command, map<uint32_t,size_t> routingtable);
   uint32_t source_ip();
+  uint32_t dest_ip();
   uint8_t command();
   
 };
@@ -81,15 +82,15 @@ class RoutingAssignment : public HostModule,
                           public TimerModule {
 private:
   virtual void timerCallback(std::any payload) final;
-  ipv4_t array_routerIP;
-  uint32_t routerIP;
+  size_t portCount;
+  map<uint32_t, size_t> interfaceMap;
   UUID timerID;
 
-  map<pair<uint32_t, uint32_t>,size_t> routingtable;
+  map<uint32_t, size_t> routingtable;
   
   bool tabelupdated;
   int routerPort = 520;
-  Time EstimatedRTT = (uint64_t) 1e8;
+  Time EstimatedRTT = (uint64_t) 10000000000;
 
 public:
   RoutingAssignment(Host &host);
@@ -120,6 +121,7 @@ public:
   void getSelfIP();
   int RoutingtableSize();
   bool AddRoutingTable(uint32_t s_addr_ip, uint32_t d_addr_ip, uint32_t matric);
+  void broadcast(uint8_t version);
 
 protected:
   virtual std::any diagnose(std::any param) final {
