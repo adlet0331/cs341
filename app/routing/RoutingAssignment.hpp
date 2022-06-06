@@ -83,14 +83,14 @@ class RoutingAssignment : public HostModule,
 private:
   virtual void timerCallback(std::any payload) final;
   size_t portCount;
-  map<uint32_t, size_t> interfaceMap;
+  map<pair<uint32_t, int>,uint32_t> interfaceMap;
   UUID timerID;
 
   map<uint32_t, size_t> routingtable;
   
   bool tabelupdated;
   int routerPort = 520;
-  Time EstimatedRTT = (uint64_t) 10000000000;
+  Time EstimatedRTT = (uint64_t) 1e10;
 
 public:
   RoutingAssignment(Host &host);
@@ -120,7 +120,7 @@ public:
 
   void getSelfIP();
   int RoutingtableSize();
-  void AddRoutingTable(uint32_t d_addr_ip, uint32_t matric);
+  void AddRoutingTable(uint32_t d_addr_ip, size_t matric);
   void broadcast(uint8_t version);
 
 protected:
