@@ -94,7 +94,7 @@ void RoutingAssignment::packetArrived(std::string fromModule, Packet &&packet) {
 }
 
 void RoutingAssignment::timerCallback(std::any payload) {
-  printf("timer\n");
+  //printf("timer\n");
   tabelupdated = false;
   broadcast((uint8_t)2);
 
@@ -108,11 +108,11 @@ void RoutingAssignment::getSelfIP() {
     uint32_t interfaceIP = (uint32_t)NetworkUtil::arrayToUINT64(array_interfaceIP);
 
     interfaceMap[make_pair(interfaceIP,i)] = (uint32_t) 0;
-    printf("%d. %d. %d. %d \n",array_interfaceIP[0],array_interfaceIP[1],array_interfaceIP[2],array_interfaceIP[3]);
+    //printf("%d. %d. %d. %d \n",array_interfaceIP[0],array_interfaceIP[1],array_interfaceIP[2],array_interfaceIP[3]);
     routingtable[interfaceIP] = 0;
     }
 
-  printf("end\n");
+  //printf("end\n");
 }
 
 int RoutingAssignment::RoutingtableSize() {
@@ -129,7 +129,7 @@ void RoutingAssignment::AddRoutingTable(uint32_t d_addr_ip, size_t matric) {
   bool secondcheck = (routingtable[d_addr_ip] > matric);
 
   if(firstcheck || secondcheck) {
-    printf("from %d to %d \n",routingtable[d_addr_ip], matric );
+    //printf("from %d to %d \n",routingtable[d_addr_ip], matric );
     routingtable[d_addr_ip] = matric;
     tabelupdated = true;
 
